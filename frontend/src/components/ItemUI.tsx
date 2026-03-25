@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-const app_name = 'outfittr.xyz';
-
-function buildPath(route: string): string {
-    if (import.meta.env.MODE != 'development') {
-        return 'http://' + app_name + ':5000/' + route;
-    }
-    else {
-        return 'http://localhost:5000/' + route;
-    }
-}
+import { buildPath } from './Path.ts';
 
 function ItemUI() {
 
@@ -26,7 +17,7 @@ function ItemUI() {
         let obj = { userId: userId, item: item };
         let js = JSON.stringify(obj);
         try {
-            const response = await fetch(buildPath('api/addCard'),
+            const response = await fetch(buildPath('api/addItem'),
                 {
                     method: 'POST', body: js, headers: {
                         'Content-Type':
@@ -51,7 +42,7 @@ function ItemUI() {
         let obj = { userId: userId, search: search };
         let js = JSON.stringify(obj);
         try {
-            const response = await fetch(buildPath('api/searchCards'),
+            const response = await fetch(buildPath('api/searchItems'),
                 {
                     method: 'POST', body: js, headers: {
                         'Content-Type':
