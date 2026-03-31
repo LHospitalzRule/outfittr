@@ -36,6 +36,39 @@ exports.setApp = function (app, client) {
         res.status(200).json(ret);
     });
 
+    // ─── REGISTER ─────────────────────────────────────────────────────────────
+    app.post('/api/register', async (req, res, next) => {
+        // incoming: login, password, firstName, lastName
+        // outgoing: error, jwtToken
+        const { login, password, firstName, lastName } = req.body;
+
+        try {
+            const db = client.db('OutfittrDB');
+
+            // ensure login is unique
+            const existing = await db.collection('Users').findOne({ login: login });
+            if (existing) {
+                res.status(200).json({ error: 'Login already exists', jwtToken: '' });
+                return;
+            }
+
+            const newUser = { login: login, password: password, firstName: firstName, lastName: lastName };
+            const result = await db.collection('Users').insertOne(newUser);
+
+            const id = result.insertedId;
+            var ret;
+            try {
+                ret = token.createToken(firstName, lastName, id);
+            } catch (e) {
+                ret = { error: e.message, jwtToken: '' };
+            }
+
+            res.status(200).json(ret);
+        } catch (e) {
+            res.status(500).json({ error: e.toString(), jwtToken: '' });
+        }
+    });
+
     // ─── ADD ITEM ─────────────────────────────────────────────────────────────────
     app.post('/api/additem', async (req, res, next) => {
         // incoming: userId, item, jwtToken
