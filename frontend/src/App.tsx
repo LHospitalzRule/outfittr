@@ -1,22 +1,15 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
-import Register from "./pages/Register";
-import ItemPage from "./pages/ItemPage";
+import RegisterPage from "./pages/RegisterPage";
 
 function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        {/* Default = Login */}
         <Route path="/" element={<LoginPage />} />
-
-        {/* Register page */}
-        <Route path="/register" element={<Register />} />
-
-        {/* After login */}
-        <Route path="/dashboard" element={<ItemPage />} />
+        <Route path="/register" element={<RegisterPage />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
 

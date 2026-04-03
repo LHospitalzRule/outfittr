@@ -2,110 +2,224 @@
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  overflow: hidden;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+
+
+.graffiti-wrapper {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+
+  /* DARK GRAFFITI BASE */
+  background: radial-gradient(circle at center, #1a0000, #000000 70%);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+/* pig background */
+.graffiti-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/pig.jpg") center/cover no-repeat;
+  opacity: 0.18;
+  filter: contrast(140%) brightness(70%) saturate(120%);
+  animation: pigPulse 4s infinite ease-in-out;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+@keyframes pigPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* moving pigs */
+.pig-run {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  background: url("/pig.jpg") center/contain no-repeat;
+  opacity: 0.12;
+  animation: pigRun 12s linear infinite;
+}
+
+.pig-run2 {
+  top: 60%;
+  animation-delay: 6s;
+}
+
+@keyframes pigRun {
+  0% { left: -300px; }
+  100% { left: 120vw; }
+}
+
+
+.streak {
+  position: absolute;
+  width: 300px;
+  height: 6px;
+  background: linear-gradient(90deg, #ff2d7a, transparent);
+  animation: streakMove 1.5s linear infinite;
+}
+
+.streak2 {
+  background: linear-gradient(90deg, #00f5d4, transparent);
+  top: 40%;
+  animation-delay: 0.5s;
+}
+
+.streak3 {
+  top: 70%;
+  animation-delay: 1s;
+}
+
+@keyframes streakMove {
+  0% { transform: translateX(-300px); }
+  100% { transform: translateX(120vw); }
+}
+
+/* spray particles */
+.spray {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 50%;
+  animation: sprayExplode 1.5s infinite ease-out;
+}
+
+.spray1 { top: 20%; left: 30%; }
+.spray2 { top: 50%; left: 60%; }
+.spray3 { top: 70%; left: 20%; }
+
+@keyframes sprayExplode {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(3) translateY(-60px); opacity: 0; }
+}
+
+/* glitch */
+.glitch {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.05) 2px,
+    rgba(255,255,255,0.05) 4px
+  );
+  animation: glitchMove 0.2s infinite;
+  pointer-events: none;
+}
+
+@keyframes glitchMove {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  position: relative;
+  z-index: 2;
+}
+
+/* REMOVE BAD GRAY OVERLAY */
+.login-container::before {
+  display: none;
+}
+
+/* CARD */
+.login-card {
+  position: relative;
+  z-index: 3;
+
+  background: #0a0a0a;
+  border: 4px solid black;
+
+  padding: 2.5rem;
+  width: 340px;
+  border-radius: 12px;
+
+  box-shadow:
+    0 0 0 4px #ff2d7a,
+    10px 10px 0 #00f5d4,
+    0 0 30px rgba(255, 0, 100, 0.3);
+
+  transform: none; /* FIX TILT */
+}
+
+/* TITLE */
+.graffiti-title {
+  color: white;
+  font-size: 2.4rem;
+  text-align: center;
+
+  background: #ff2d7a;
+  padding: 6px 12px;
+
+  display: inline-block;
+  margin-bottom: 1rem;
+
+  box-shadow: 4px 4px 0 #00f5d4;
+}
+
+/* INPUTS */
+.login-card input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+
+  background: #1a1a1a;
+  border: 3px solid black;
+
+  font-weight: bold;
+  color: white;
+}
+
+/* BUTTON */
+.login-card button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 12px;
+
+  background: #ffe600;
+  border: 3px solid black;
+
+  font-weight: bold;
+  font-size: 1rem;
+
+  color: black;
+  cursor: pointer;
+
+  box-shadow: 5px 5px 0 black;
+  transition: 0.2s;
+}
+
+.login-card button:hover {
+  transform: translate(-3px, -3px) scale(1.05);
+  box-shadow: 7px 7px 0 black;
+  background: #ff2d7a;
+  color: white;
+}
+
+/* LINKS */
+.link-text {
+  color: white;
+  margin-top: 1rem;
+  font-weight: bold;
+}
+
+.link-text span {
+  color: #00f5d4;
+  cursor: pointer;
 }
