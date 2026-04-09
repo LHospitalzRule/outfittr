@@ -25,7 +25,6 @@ body {
   background: radial-gradient(circle at center, #1a0000, #000000 70%);
 }
 
-/* Static background image */
 .graffiti-wrapper::after {
   content: "";
   position: absolute;
@@ -42,7 +41,6 @@ body {
   100% { transform: scale(1); }
 }
 
-/* Moving pigs */
 .pig-run {
   position: absolute;
   width: 250px;
@@ -62,7 +60,6 @@ body {
   100% { left: 120vw; }
 }
 
-/* Streaks */
 .streak {
   position: absolute;
   width: 300px;
@@ -87,7 +84,6 @@ body {
   100% { transform: translateX(120vw); }
 }
 
-/* Spray particles */
 .spray {
   position: absolute;
   width: 6px;
@@ -106,7 +102,6 @@ body {
   100% { transform: scale(3) translateY(-60px); opacity: 0; }
 }
 
-/* Glitch overlay */
 .glitch {
   position: absolute;
   inset: 0;
@@ -144,7 +139,6 @@ body {
   display: none;
 }
 
-/* Card */
 .login-card {
   position: relative;
   z-index: 3;
@@ -159,7 +153,6 @@ body {
     0 0 30px rgba(255, 0, 100, 0.3);
 }
 
-/* Title label */
 .graffiti-title {
   color: white;
   font-size: 2.4rem;
@@ -171,7 +164,6 @@ body {
   box-shadow: 4px 4px 0 #00f5d4;
 }
 
-/* Inputs */
 .login-card input {
   width: 100%;
   padding: 12px;
@@ -182,7 +174,6 @@ body {
   color: white;
 }
 
-/* Button */
 .login-card button {
   width: 100%;
   padding: 14px;
@@ -204,7 +195,6 @@ body {
   color: white;
 }
 
-/* Links */
 .link-text {
   color: white;
   margin-top: 1rem;
@@ -317,7 +307,7 @@ body {
   flex: 1;
 }
 
-/* Placeholder figure — TODO: replace with actual character asset */
+/* TODO: replace with actual character asset */
 .om-stand-figure {
   font-size: 5rem;
   animation: standPulse 3s ease-in-out infinite;
@@ -346,11 +336,10 @@ body {
   background: #0f0f0f;
   cursor: pointer;
   transition: 0.2s;
-  position: relative;
 }
 
-.om-slot.filled  { border-color: #ff2d7a; background: #1a0a10; }
-.om-slot.empty   { border-color: #333; border-style: dashed; }
+.om-slot.filled   { border-color: #ff2d7a; background: #1a0a10; }
+.om-slot.empty    { border-color: #333; border-style: dashed; }
 .om-slot.disabled { opacity: 0.3; cursor: not-allowed; }
 
 .om-slot:not(.disabled):hover {
@@ -435,12 +424,8 @@ body {
   margin-bottom: -3px;
 }
 
-.om-tab:hover { color: white; }
-
-.om-tab.active {
-  color: white;
-  border-bottom: 3px solid #ff2d7a;
-}
+.om-tab:hover          { color: white; }
+.om-tab.active         { color: white; border-bottom: 3px solid #ff2d7a; }
 
 .om-tab-count {
   color: white;
@@ -448,10 +433,10 @@ body {
   padding: 2px 6px;
   border-radius: 10px;
   font-weight: bold;
+  background: #333;
 }
 
-.om-tab.active .om-tab-count     { background: #ff2d7a; }
-.om-tab:not(.active) .om-tab-count { background: #333; }
+.om-tab.active .om-tab-count { background: #ff2d7a; }
 
 /* ── Tab Content ── */
 .om-tab-content {
@@ -616,7 +601,7 @@ body {
   letter-spacing: 1px;
 }
 
-/* ── Modal ── */
+/* ── Modal (shared by item edit + slot picker) ── */
 .om-modal-overlay {
   position: fixed;
   inset: 0;
@@ -656,6 +641,7 @@ body {
 
 .om-modal-actions button { flex: 1; }
 
+/* ── Item Image ── */
 .om-item-image {
   width: 100%;
   height: 160px;
@@ -679,6 +665,67 @@ body {
   font-size: 0.75rem;
   margin-top: 0.25rem;
   color: #555;
+}
+
+/* ── Slot Picker ── */
+.om-picker-hint {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.om-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.om-picker-empty {
+  color: #444;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.om-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: #111;
+  border: 2px solid #222;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.om-picker-item:hover {
+  border-color: #00f5d4;
+  background: #0a1a18;
+}
+
+.om-picker-item-emoji { font-size: 1.4rem; }
+
+.om-picker-item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.om-picker-item-name {
+  color: white;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.om-picker-item-type {
+  color: #00f5d4;
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 
 /* ── Shared Inputs ── */
@@ -782,65 +829,4 @@ body {
 .om-btn-ghost:hover {
   background: #00f5d4;
   color: black;
-}
-
-/* ── Slot Picker ── */
-.om-picker-hint {
-  color: #888;
-  font-size: 0.8rem;
-  margin: 0 0 0.75rem 0;
-}
-
-.om-picker-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 260px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.om-picker-empty {
-  color: #444;
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 1rem 0;
-}
-
-.om-picker-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 0.8rem;
-  background: #111;
-  border: 2px solid #222;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.om-picker-item:hover {
-  border-color: #00f5d4;
-  background: #0a1a18;
-}
-
-.om-picker-item-emoji { font-size: 1.4rem; }
-
-.om-picker-item-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.om-picker-item-name {
-  color: white;
-  font-size: 0.85rem;
-  font-weight: bold;
-}
-
-.om-picker-item-type {
-  color: #00f5d4;
-  font-size: 0.65rem;
-  font-weight: bold;
-  letter-spacing: 1px;
 }
