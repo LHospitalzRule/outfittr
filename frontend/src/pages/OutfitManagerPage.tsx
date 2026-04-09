@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Item {
     itemId: string;
     name: string;
-    type: string;
+    type: 'HAT' | 'SHIRT' | 'PANTS' | 'SHOES' | 'JACKET' | 'ACCESSORY';
     tags: string[];
     imageURL: string;
     notes: string;
@@ -18,264 +19,485 @@ interface Outfit {
     items: Item[];
 }
 
-// ─── View Types ───────────────────────────────────────────────────────────────
+type CatalogTab = 'outfits' | 'items';
 
-type View = 'manager' | 'outfit' | 'item';
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SLOT_ORDER: Item['type'][] = ['HAT', 'SHIRT', 'PANTS', 'SHOES'];
+
+const SLOT_EMOJI: Record<Item['type'], string> = {
+    HAT:       '🧢',
+    SHIRT:     '👕',
+    PANTS:     '👖',
+    SHOES:     '👟',
+    JACKET:    '🧥',
+    ACCESSORY: '💍',
+};
+
+const ALL_TYPES: Item['type'][] = ['HAT', 'SHIRT', 'PANTS', 'SHOES', 'JACKET', 'ACCESSORY'];
+
+function makeNewItem(type: Item['type'] = 'SHIRT'): Item {
+    return {
+        itemId: Date.now().toString(), // TODO: replace with API generated ID
+        name: '',
+        type,
+        tags: [],
+        imageURL: '',
+        notes: ''
+    };
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 function OutfitManagerPage() {
+    const navigate = useNavigate();
 
     // ── State ──────────────────────────────────────────────────────────────────
-    const [view, setView] = useState<View>('manager');
-    const [outfits, setOutfits] = useState<Outfit[]>([]);
+    const [catalogTab, setCatalogTab]         = useState<CatalogTab>('outfits');
+    const [outfits, setOutfits]               = useState<Outfit[]>([]);
+    const [allItems, setAllItems]             = useState<Item[]>([]);
     const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
-    const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+    const [editingItem, setEditingItem]       = useState<Item | null>(null);
+    const [isNewItem, setIsNewItem]           = useState(false);
+    const [outfitSearch, setOutfitSearch]     = useState('');
+    const [itemSearch, setItemSearch]         = useState('');
+
+    // Slot picker: when user clicks empty slot, show picker to choose existing or new
+    const [slotPicker, setSlotPicker] = useState<{ type: Item['type'] } | null>(null);
+
+    // ── Outfit Helpers ─────────────────────────────────────────────────────────
+
+    function syncOutfit(updated: Outfit) {
+        setSelectedOutfit(updated);
+        setOutfits(prev => prev.map(o => o.outfitId === updated.outfitId ? updated : o));
+    }
+
+    function getSlotItem(type: Item['type']): Item | undefined {
+        return selectedOutfit?.items.find(i => i.type === type);
+    }
+
+    function filteredOutfits(): Outfit[] {
+        const q = outfitSearch.toLowerCase().trim();
+        if (!q) return outfits;
+        return outfits.filter(o =>
+            o.name.toLowerCase().includes(q) ||
+            o.items.some(i =>
+                i.name.toLowerCase().includes(q) ||
+                i.type.toLowerCase().includes(q) ||
+                i.tags.some(t => t.toLowerCase().includes(q))
+            )
+        );
+    }
+
+    function filteredItems(): Item[] {
+        const q = itemSearch.toLowerCase().trim();
+        if (!q) return allItems;
+        return allItems.filter(i =>
+            i.name.toLowerCase().includes(q) ||
+            i.type.toLowerCase().includes(q) ||
+            i.tags.some(t => t.toLowerCase().includes(q))
+        );
+        // TODO: connect to POST /api/searchitems
+    }
 
     // ── Outfit Actions ─────────────────────────────────────────────────────────
 
     function handleNewOutfit() {
         const newOutfit: Outfit = {
-            outfitId: Date.now().toString(), // TODO: replace with DB generated ID
+            outfitId: Date.now().toString(), // TODO: replace with API generated ID
             name: 'New Outfit',
             description: '',
             items: []
         };
-        setOutfits([...outfits, newOutfit]);
+        setOutfits(prev => [...prev, newOutfit]);
         setSelectedOutfit(newOutfit);
-        setView('outfit');
+        setCatalogTab('outfits');
+        // TODO: POST /api/addoutfit
     }
 
-    function handleSelectOutfit(outfit: Outfit) {
-        setSelectedOutfit(outfit);
-        setView('outfit');
-    }
-
-    function handleSaveOutfit(updated: Outfit) {
-        setOutfits(outfits.map(o => o.outfitId === updated.outfitId ? updated : o));
-        setSelectedOutfit(updated);
-        // TODO: connect to API → PUT /api/updateoutfit
-    }
-
-    function handleDeleteOutfit(outfitId: string) {
-        setOutfits(outfits.filter(o => o.outfitId !== outfitId));
-        setView('manager');
-        // TODO: connect to API → DELETE /api/deleteoutfit
-    }
-
-    // ── Item Actions ───────────────────────────────────────────────────────────
-
-    function handleNewItem() {
+    function handleDeleteOutfit() {
         if (!selectedOutfit) return;
-        const newItem: Item = {
-            itemId: Date.now().toString(), // TODO: replace with DB generated ID
-            name: 'New Item',
-            type: 'SHIRT',
-            tags: [],
-            imageURL: '',
-            notes: ''
-        };
-        const updatedOutfit = { ...selectedOutfit, items: [...selectedOutfit.items, newItem] };
-        handleSaveOutfit(updatedOutfit);
-        setSelectedItem(newItem);
-        setView('item');
-        // TODO: connect to API → POST /api/additem
+        setOutfits(prev => prev.filter(o => o.outfitId !== selectedOutfit.outfitId));
+        setSelectedOutfit(null);
+        // TODO: DELETE /api/deleteoutfit
     }
 
-    function handleSelectItem(item: Item) {
-        setSelectedItem(item);
-        setView('item');
-    }
-
-    function handleSaveItem(updated: Item) {
+    function handleRenameOutfit(name: string) {
         if (!selectedOutfit) return;
-        const updatedItems = selectedOutfit.items.map(i => i.itemId === updated.itemId ? updated : i);
-        const updatedOutfit = { ...selectedOutfit, items: updatedItems };
-        handleSaveOutfit(updatedOutfit);
-        setSelectedItem(updated);
-        // TODO: connect to API → PUT /api/updateitem
+        syncOutfit({ ...selectedOutfit, name });
+        // TODO: PUT /api/updateoutfit
+    }
+
+    // ── Item Modal Helpers ─────────────────────────────────────────────────────
+
+    function openNewItem(type: Item['type'] = 'SHIRT') {
+        setEditingItem(makeNewItem(type));
+        setIsNewItem(true);
+        setSlotPicker(null);
+    }
+
+    function openEditItem(item: Item) {
+        setEditingItem({ ...item });
+        setIsNewItem(false);
+        setSlotPicker(null);
+    }
+
+    // ── Slot Interactions ──────────────────────────────────────────────────────
+
+    function handleClickSlot(type: Item['type']) {
+        const existing = getSlotItem(type);
+        if (existing) {
+            // Slot is filled → open edit modal directly
+            openEditItem(existing);
+        } else {
+            // Slot is empty → show picker: choose existing item or create new
+            setSlotPicker({ type });
+        }
+    }
+
+    // User picks an existing item from their catalog to put in the slot
+    function handleAssignExistingToSlot(item: Item, type: Item['type']) {
+        if (!selectedOutfit) return;
+        const assigned = { ...item, type }; // keep same item but assign to this slot type
+        const updatedItems = [
+            ...selectedOutfit.items.filter(i => i.type !== type),
+            assigned
+        ];
+        syncOutfit({ ...selectedOutfit, items: updatedItems });
+        setSlotPicker(null);
+        // TODO: PUT /api/updateoutfit
+    }
+
+    // ── Item Save / Delete ─────────────────────────────────────────────────────
+
+    function handleSaveItem(item: Item) {
+        // Update or add in allItems
+        setAllItems(prev => {
+            const exists = prev.find(i => i.itemId === item.itemId);
+            return exists
+                ? prev.map(i => i.itemId === item.itemId ? item : i)
+                : [...prev, item];
+        });
+
+        // If an outfit is selected, also sync it into that outfit
+        if (selectedOutfit) {
+            const existsInOutfit = selectedOutfit.items.find(i => i.itemId === item.itemId);
+            const updatedItems = existsInOutfit
+                ? selectedOutfit.items.map(i => i.itemId === item.itemId ? item : i)
+                : [...selectedOutfit.items.filter(i => i.type !== item.type), item];
+            syncOutfit({ ...selectedOutfit, items: updatedItems });
+        }
+
+        setEditingItem(null);
+        // TODO: PUT /api/updateitem (+ Cloudinary upload if imageURL changed)
     }
 
     function handleDeleteItem(itemId: string) {
-        if (!selectedOutfit) return;
-        const updatedItems = selectedOutfit.items.filter(i => i.itemId !== itemId);
-        const updatedOutfit = { ...selectedOutfit, items: updatedItems };
-        handleSaveOutfit(updatedOutfit);
-        setView('outfit');
-        // TODO: connect to API → DELETE /api/deleteitem
+        setAllItems(prev => prev.filter(i => i.itemId !== itemId));
+        if (selectedOutfit) {
+            syncOutfit({
+                ...selectedOutfit,
+                items: selectedOutfit.items.filter(i => i.itemId !== itemId)
+            });
+        }
+        setEditingItem(null);
+        // TODO: DELETE /api/deleteitem + Cloudinary cleanup
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('user_data');
+        localStorage.removeItem('token_data');
+        navigate('/');
     }
 
     // ── Render ─────────────────────────────────────────────────────────────────
 
     return (
         <>
-            {/* Background */}
             <div className="graffiti-wrapper" />
 
-            {/* Page Content */}
-            <div className="manager-container">
+            <div className="om-page">
 
-                {/* ── MANAGER VIEW ── */}
-                {view === 'manager' && (
-                    <div className="manager-view">
-                        <div className="manager-header">
-                            <h1 className="graffiti-title">MY OUTFITS</h1>
-                            <button className="outfit-btn-yellow" onClick={handleNewOutfit}>
-                                + NEW OUTFIT
+                {/* ── NAVBAR ── */}
+                <nav className="om-navbar">
+                    <span className="om-logo">OUTFITTR</span>
+                    <div className="om-nav-center">
+                        <button className="om-btn-cyan" onClick={() => openNewItem()}>+ NEW ITEM</button>
+                        <button className="om-btn-yellow" onClick={handleNewOutfit}>+ NEW OUTFIT</button>
+                    </div>
+                    <button className="om-btn-ghost" onClick={handleLogout}>LOG OUT</button>
+                </nav>
+
+                {/* ── MAIN CONTENT ── */}
+                <div className="om-content">
+
+                    {/* ── LEFT — Armor Stand ── */}
+                    <div className="om-left">
+                        <div className="om-stand-label">
+                            {selectedOutfit ? (
+                                <input
+                                    className="om-outfit-name-input"
+                                    value={selectedOutfit.name}
+                                    onChange={e => handleRenameOutfit(e.target.value)}
+                                />
+                            ) : (
+                                <span className="om-no-selection">← SELECT AN OUTFIT</span>
+                            )}
+                        </div>
+
+                        <div className="om-stand">
+                            {/* TODO: replace with actual mannequin/character asset */}
+                            <div className="om-stand-figure">🪆</div>
+
+                            <div className="om-slots">
+                                {SLOT_ORDER.map(type => {
+                                    const item = getSlotItem(type);
+                                    return (
+                                        <div
+                                            key={type}
+                                            className={`om-slot ${item ? 'filled' : 'empty'} ${!selectedOutfit ? 'disabled' : ''}`}
+                                            onClick={() => selectedOutfit && handleClickSlot(type)}
+                                        >
+                                            <span className="om-slot-icon">{SLOT_EMOJI[type]}</span>
+                                            <div className="om-slot-info">
+                                                <span className="om-slot-type">{type}</span>
+                                                <span className="om-slot-name">
+                                                    {item ? item.name || 'Unnamed' : 'Empty — click to add'}
+                                                </span>
+                                            </div>
+                                            {item?.imageURL && (
+                                                <img className="om-slot-thumb" src={item.imageURL} alt={item.name} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {selectedOutfit && (
+                                <button className="om-btn-danger om-delete-outfit-btn" onClick={handleDeleteOutfit}>
+                                    DELETE OUTFIT
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── RIGHT — Tabbed Catalog ── */}
+                    <div className="om-right">
+                        <div className="om-tabs">
+                            <button
+                                className={`om-tab ${catalogTab === 'outfits' ? 'active' : ''}`}
+                                onClick={() => setCatalogTab('outfits')}
+                            >
+                                OUTFITS <span className="om-tab-count">{outfits.length}</span>
+                            </button>
+                            <button
+                                className={`om-tab ${catalogTab === 'items' ? 'active' : ''}`}
+                                onClick={() => setCatalogTab('items')}
+                            >
+                                ITEMS <span className="om-tab-count">{allItems.length}</span>
                             </button>
                         </div>
 
-                        {outfits.length === 0 ? (
-                            <div className="empty-state">
-                                <p>No outfits yet. Hit <strong>+ NEW OUTFIT</strong> to get started.</p>
-                            </div>
-                        ) : (
-                            <div className="outfit-grid">
-                                {outfits.map(outfit => (
-                                    <div
-                                        key={outfit.outfitId}
-                                        className="outfit-card"
-                                        onClick={() => handleSelectOutfit(outfit)}
-                                    >
-                                        <div className="outfit-card-title">{outfit.name}</div>
-                                        <div className="outfit-card-items">
-                                            {outfit.items.length === 0 ? (
-                                                <span className="empty-items">No items yet</span>
-                                            ) : (
-                                                outfit.items.map(item => (
-                                                    <span key={item.itemId} className="item-tag">
-                                                        {item.type}
-                                                    </span>
-                                                ))
-                                            )}
-                                        </div>
+                        {/* OUTFITS TAB */}
+                        {catalogTab === 'outfits' && (
+                            <div className="om-tab-content">
+                                <input
+                                    className="om-tab-search"
+                                    placeholder="SEARCH OUTFITS..."
+                                    value={outfitSearch}
+                                    onChange={e => setOutfitSearch(e.target.value)}
+                                />
+                                {filteredOutfits().length === 0 ? (
+                                    <div className="om-empty">
+                                        {outfits.length === 0
+                                            ? 'No outfits yet — hit + NEW OUTFIT to get started.'
+                                            : 'No outfits match your search.'}
                                     </div>
-                                ))}
+                                ) : (
+                                    <div className="om-cards-list">
+                                        {filteredOutfits().map(outfit => (
+                                            <div
+                                                key={outfit.outfitId}
+                                                className={`om-outfit-card ${selectedOutfit?.outfitId === outfit.outfitId ? 'active' : ''}`}
+                                                onClick={() => { setSelectedOutfit(outfit); setEditingItem(null); }}
+                                            >
+                                                <div className="om-card-name">{outfit.name}</div>
+                                                <div className="om-card-tags">
+                                                    {outfit.items.length === 0
+                                                        ? <span className="om-card-empty">No items yet</span>
+                                                        : outfit.items.map(item => (
+                                                            <span key={item.itemId} className="om-item-pip" title={item.name}>
+                                                                {SLOT_EMOJI[item.type]}
+                                                            </span>
+                                                        ))
+                                                    }
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ITEMS TAB */}
+                        {catalogTab === 'items' && (
+                            <div className="om-tab-content">
+                                <input
+                                    className="om-tab-search"
+                                    placeholder="SEARCH BY NAME, TYPE, TAG..."
+                                    value={itemSearch}
+                                    onChange={e => setItemSearch(e.target.value)}
+                                    // TODO: connect to POST /api/searchitems
+                                />
+                                {filteredItems().length === 0 ? (
+                                    <div className="om-empty">
+                                        {allItems.length === 0
+                                            ? 'No items yet — hit + NEW ITEM to add one.'
+                                            : 'No items match your search.'}
+                                    </div>
+                                ) : (
+                                    <div className="om-items-grid">
+                                        {filteredItems().map(item => (
+                                            <div
+                                                key={item.itemId}
+                                                className="om-item-card"
+                                                onClick={() => openEditItem(item)}
+                                            >
+                                                <div className="om-item-card-image">
+                                                    {item.imageURL
+                                                        ? <img src={item.imageURL} alt={item.name} />
+                                                        : <div className="om-item-card-no-image">{SLOT_EMOJI[item.type]}</div>
+                                                    }
+                                                    {/* TODO: replace with Cloudinary URL */}
+                                                </div>
+                                                <div className="om-item-card-info">
+                                                    <span className="om-item-card-name">{item.name || 'Unnamed'}</span>
+                                                    <span className="om-item-card-type">{item.type}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
-                )}
-
-                {/* ── OUTFIT VIEW ── */}
-                {view === 'outfit' && selectedOutfit && (
-                    <OutfitView
-                        outfit={selectedOutfit}
-                        onBack={() => setView('manager')}
-                        onSave={handleSaveOutfit}
-                        onDelete={handleDeleteOutfit}
-                        onNewItem={handleNewItem}
-                        onSelectItem={handleSelectItem}
-                    />
-                )}
-
-                {/* ── ITEM VIEW ── */}
-                {view === 'item' && selectedItem && (
-                    <ItemView
-                        item={selectedItem}
-                        onBack={() => setView('outfit')}
-                        onSave={handleSaveItem}
-                        onDelete={handleDeleteItem}
-                    />
-                )}
-
+                </div>
             </div>
+
+            {/* ── SLOT PICKER — choose existing item or create new ── */}
+            {slotPicker && selectedOutfit && (
+                <SlotPicker
+                    slotType={slotPicker.type}
+                    allItems={allItems}
+                    onPickExisting={(item) => handleAssignExistingToSlot(item, slotPicker.type)}
+                    onCreateNew={() => openNewItem(slotPicker.type)}
+                    onClose={() => setSlotPicker(null)}
+                />
+            )}
+
+            {/* ── ITEM EDIT MODAL ── */}
+            {editingItem && (
+                <ItemEditModal
+                    item={editingItem}
+                    isNew={isNewItem}
+                    onSave={handleSaveItem}
+                    onDelete={handleDeleteItem}
+                    onClose={() => setEditingItem(null)}
+                />
+            )}
         </>
     );
 }
 
-// ─── Outfit View Component ────────────────────────────────────────────────────
+// ─── Slot Picker ──────────────────────────────────────────────────────────────
+// Shows when user clicks an empty slot — lets them pick from existing items
+// or create a brand new one
 
-interface OutfitViewProps {
-    outfit: Outfit;
-    onBack: () => void;
-    onSave: (outfit: Outfit) => void;
-    onDelete: (id: string) => void;
-    onNewItem: () => void;
-    onSelectItem: (item: Item) => void;
+interface SlotPickerProps {
+    slotType: Item['type'];
+    allItems: Item[];
+    onPickExisting: (item: Item) => void;
+    onCreateNew: () => void;
+    onClose: () => void;
 }
 
-function OutfitView({ outfit, onBack, onSave, onDelete, onNewItem, onSelectItem }: OutfitViewProps) {
-    const [name, setName] = useState(outfit.name);
-    const [description, setDescription] = useState(outfit.description);
+function SlotPicker({ slotType, allItems, onPickExisting, onCreateNew, onClose }: SlotPickerProps) {
+    const [search, setSearch] = useState('');
 
-    function handleSave() {
-        onSave({ ...outfit, name, description });
-    }
+    const compatible = allItems.filter(i => {
+        const q = search.toLowerCase().trim();
+        return (!q || i.name.toLowerCase().includes(q) || i.tags.some(t => t.toLowerCase().includes(q)));
+    });
 
     return (
-        <div className="detail-view">
-            <div className="login-card" style={{ width: '500px', maxWidth: '90vw' }}>
-
-                {/* Header */}
-                <div className="detail-header">
-                    <button className="outfit-btn-ghost" onClick={onBack}>← BACK</button>
-                    <input
-                        className="outfit-name-input"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        placeholder="OUTFIT NAME"
-                    />
+        <div className="om-modal-overlay">
+            <div className="om-modal">
+                <div className="om-modal-header">
+                    <h2 className="graffiti-title" style={{ fontSize: '1.2rem', margin: 0 }}>
+                        {SLOT_EMOJI[slotType]} {slotType} SLOT
+                    </h2>
+                    <button className="om-btn-ghost" onClick={onClose}>✕</button>
                 </div>
 
-                {/* Description */}
-                <textarea
-                    className="outfit-notes"
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    placeholder="Optional notes..."
+                <p className="om-picker-hint">Pick from your existing items or create a new one.</p>
+
+                <input
+                    className="om-input"
+                    placeholder="SEARCH YOUR ITEMS..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    autoFocus
                 />
 
-                {/* Items */}
-                <div className="items-section">
-                    <div className="items-label">ITEMS</div>
-                    {outfit.items.length === 0 ? (
-                        <p className="empty-items">No items yet. Add one below.</p>
+                {/* Existing items list */}
+                <div className="om-picker-list">
+                    {compatible.length === 0 ? (
+                        <p className="om-picker-empty">No items found.</p>
                     ) : (
-                        <div className="items-grid">
-                            {outfit.items.map(item => (
-                                <div
-                                    key={item.itemId}
-                                    className="item-card"
-                                    onClick={() => onSelectItem(item)}
-                                >
-                                    <div className="item-image-placeholder">
-                                        {/* TODO: render item.imageURL when available */}
-                                        📷
-                                    </div>
-                                    <div className="item-card-name">{item.name}</div>
-                                    <div className="item-card-type">{item.type}</div>
+                        compatible.map(item => (
+                            <div
+                                key={item.itemId}
+                                className="om-picker-item"
+                                onClick={() => onPickExisting(item)}
+                            >
+                                <span className="om-picker-item-emoji">
+                                    {SLOT_EMOJI[item.type]}
+                                </span>
+                                <div className="om-picker-item-info">
+                                    <span className="om-picker-item-name">{item.name || 'Unnamed'}</span>
+                                    <span className="om-picker-item-type">{item.type}</span>
                                 </div>
-                            ))}
-                        </div>
+                                {item.imageURL && (
+                                    <img className="om-slot-thumb" src={item.imageURL} alt={item.name} />
+                                )}
+                            </div>
+                        ))
                     )}
-                    <button className="outfit-btn-yellow" onClick={onNewItem}>+ NEW ITEM</button>
                 </div>
 
-                {/* Actions */}
-                <div className="detail-actions">
-                    <button className="outfit-btn-yellow" onClick={handleSave}>SAVE</button>
-                    <button className="outfit-btn-danger" onClick={() => onDelete(outfit.outfitId)}>DELETE</button>
-                </div>
-
+                <button className="om-btn-cyan" style={{ width: '100%', marginTop: '0.75rem' }} onClick={onCreateNew}>
+                    + CREATE NEW {slotType}
+                </button>
             </div>
         </div>
     );
 }
 
-// ─── Item View Component ──────────────────────────────────────────────────────
+// ─── Item Edit Modal ──────────────────────────────────────────────────────────
 
-interface ItemViewProps {
+interface ItemEditModalProps {
     item: Item;
-    onBack: () => void;
+    isNew: boolean;
     onSave: (item: Item) => void;
     onDelete: (id: string) => void;
+    onClose: () => void;
 }
 
-function ItemView({ item, onBack, onSave, onDelete }: ItemViewProps) {
-    const [name, setName] = useState(item.name);
-    const [type, setType] = useState(item.type);
-    const [notes, setNotes] = useState(item.notes);
-    const [tags, setTags] = useState(item.tags.join(', '));
+function ItemEditModal({ item, isNew, onSave, onDelete, onClose }: ItemEditModalProps) {
+    const [name, setName]         = useState(item.name);
+    const [type, setType]         = useState(item.type);
+    const [notes, setNotes]       = useState(item.notes);
+    const [tags, setTags]         = useState(item.tags.join(', '));
     const [imageURL, setImageURL] = useState(item.imageURL);
 
     function handleSave() {
@@ -290,78 +512,44 @@ function ItemView({ item, onBack, onSave, onDelete }: ItemViewProps) {
     }
 
     return (
-        <div className="detail-view">
-            <div className="login-card" style={{ width: '420px', maxWidth: '90vw' }}>
-
-                {/* Header */}
-                <div className="detail-header">
-                    <button className="outfit-btn-ghost" onClick={onBack}>← BACK</button>
-                    <input
-                        className="outfit-name-input"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        placeholder="ITEM NAME"
-                    />
+        <div className="om-modal-overlay">
+            <div className="om-modal">
+                <div className="om-modal-header">
+                    <h2 className="graffiti-title" style={{ fontSize: '1.3rem', margin: 0 }}>
+                        {isNew ? 'NEW ITEM' : 'EDIT ITEM'}
+                    </h2>
+                    <button className="om-btn-ghost" onClick={onClose}>✕</button>
                 </div>
 
-                {/* Image */}
-                <div className="item-image-large">
-                    {imageURL ? (
-                        <img src={imageURL} alt={name} />
-                    ) : (
-                        <div className="image-placeholder-large">
-                            📷
+                {/* Image preview — TODO: replace with Cloudinary widget */}
+                <div className="om-item-image">
+                    {imageURL
+                        ? <img src={imageURL} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div className="om-image-placeholder">
+                            {SLOT_EMOJI[type]}
                             <p>No image yet</p>
-                            {/* TODO: add image upload functionality */}
-                        </div>
-                    )}
+                          </div>
+                    }
                 </div>
 
-                {/* Image URL input */}
-                <input
-                    className="outfit-input"
-                    value={imageURL}
-                    onChange={e => setImageURL(e.target.value)}
-                    placeholder="IMAGE URL (optional)"
-                />
+                <input className="om-input" value={name} onChange={e => setName(e.target.value)} placeholder="ITEM NAME" />
 
-                {/* Type */}
-                <select
-                    className="outfit-select"
-                    value={type}
-                    onChange={e => setType(e.target.value)}
-                >
-                    <option value="SHIRT">SHIRT</option>
-                    <option value="PANTS">PANTS</option>
-                    <option value="SHOES">SHOES</option>
-                    <option value="JACKET">JACKET</option>
-                    <option value="HAT">HAT</option>
-                    <option value="ACCESSORY">ACCESSORY</option>
-                    <option value="OTHER">OTHER</option>
+                <select className="om-input" value={type} onChange={e => setType(e.target.value as Item['type'])}>
+                    {ALL_TYPES.map(t => (
+                        <option key={t} value={t}>{SLOT_EMOJI[t]} {t}</option>
+                    ))}
                 </select>
 
-                {/* Tags */}
-                <input
-                    className="outfit-input"
-                    value={tags}
-                    onChange={e => setTags(e.target.value)}
-                    placeholder="TAGS (comma separated)"
-                />
+                <input className="om-input" value={imageURL} onChange={e => setImageURL(e.target.value)} placeholder="IMAGE URL — Cloudinary coming soon" />
+                <input className="om-input" value={tags} onChange={e => setTags(e.target.value)} placeholder="TAGS — comma separated" />
+                <textarea className="om-input om-textarea" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" />
 
-                {/* Notes */}
-                <textarea
-                    className="outfit-notes"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Optional notes..."
-                />
-
-                {/* Actions */}
-                <div className="detail-actions">
-                    <button className="outfit-btn-yellow" onClick={handleSave}>SAVE</button>
-                    <button className="outfit-btn-danger" onClick={() => onDelete(item.itemId)}>DELETE</button>
+                <div className="om-modal-actions">
+                    <button className="om-btn-yellow" onClick={handleSave}>SAVE</button>
+                    {!isNew && (
+                        <button className="om-btn-danger" onClick={() => onDelete(item.itemId)}>DELETE</button>
+                    )}
                 </div>
-
             </div>
         </div>
     );
