@@ -424,8 +424,8 @@ body {
   margin-bottom: -3px;
 }
 
-.om-tab:hover          { color: white; }
-.om-tab.active         { color: white; border-bottom: 3px solid #ff2d7a; }
+.om-tab:hover  { color: white; }
+.om-tab.active { color: white; border-bottom: 3px solid #ff2d7a; }
 
 .om-tab-count {
   color: white;
@@ -674,11 +674,72 @@ body {
   margin: 0 0 0.75rem 0;
 }
 
+/* Currently equipped item in swap mode */
+.om-picker-current {
+  margin-bottom: 0.75rem;
+}
+
+.om-picker-current-label {
+  color: #00f5d4;
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.om-picker-current-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  background: #1a0a10;
+  border: 2px solid #ff2d7a;
+  border-radius: 6px;
+}
+
+.om-picker-current-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  overflow: hidden;
+}
+
+.om-picker-current-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 2px solid #ff2d7a;
+  flex-shrink: 0;
+}
+
+/* Divider between current item and swap list */
+.om-picker-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+  color: #444;
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.om-picker-divider::before,
+.om-picker-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #333;
+}
+
 .om-picker-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 260px;
+  max-height: 220px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -713,12 +774,16 @@ body {
   display: flex;
   flex-direction: column;
   flex: 1;
+  overflow: hidden;
 }
 
 .om-picker-item-name {
   color: white;
   font-size: 0.85rem;
   font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .om-picker-item-type {
