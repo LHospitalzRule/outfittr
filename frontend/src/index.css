@@ -223,3 +223,321 @@ body {
   color: #00f5d4;
   cursor: pointer;
 }
+
+/* ─────────────────────────────────────────────
+   OUTFIT MANAGER PAGE
+───────────────────────────────────────────── */
+
+/* overflow fix for scrollable manager page */
+.manager-container {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  overflow-y: auto;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+/* ── Manager View ── */
+.manager-view {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.empty-state {
+  color: white;
+  text-align: center;
+  margin-top: 4rem;
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+/* ── Outfit Grid ── */
+.outfit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.outfit-card {
+  background: #0a0a0a;
+  border: 4px solid black;
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 4px #ff2d7a,
+    6px 6px 0 #00f5d4;
+  transition: 0.2s;
+}
+
+.outfit-card:hover {
+  transform: translate(-3px, -3px);
+  box-shadow:
+    0 0 0 4px #ff2d7a,
+    10px 10px 0 #00f5d4;
+}
+
+.outfit-card-title {
+  color: white;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+}
+
+.outfit-card-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.item-tag {
+  background: #ff2d7a;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.empty-items {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+/* ── Detail View (Outfit + Item) ── */
+.detail-view {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 2rem;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.detail-actions button {
+  flex: 1;
+}
+
+/* ── Items Section inside Outfit View ── */
+.items-section {
+  margin: 1.5rem 0;
+}
+
+.items-label {
+  color: #00f5d4;
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: 2px;
+}
+
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.item-card {
+  background: #1a1a1a;
+  border: 3px solid #ff2d7a;
+  border-radius: 8px;
+  padding: 0.75rem;
+  cursor: pointer;
+  text-align: center;
+  transition: 0.2s;
+}
+
+.item-card:hover {
+  background: #2a0a1a;
+  transform: translateY(-2px);
+}
+
+.item-image-placeholder {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.item-card-name {
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-card-type {
+  color: #00f5d4;
+  font-size: 0.65rem;
+  margin-top: 2px;
+}
+
+/* ── Item Image Large ── */
+.item-image-large {
+  width: 100%;
+  height: 180px;
+  background: #1a1a1a;
+  border: 3px solid #333;
+  border-radius: 8px;
+  margin: 0.75rem 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-image-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-placeholder-large {
+  text-align: center;
+  color: #555;
+  font-size: 2.5rem;
+}
+
+.image-placeholder-large p {
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+/* ── Inputs ── */
+.outfit-name-input {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid #ff2d7a;
+  color: white;
+  font-size: 1.2rem;
+  font-weight: bold;
+  padding: 4px 8px;
+  flex: 1;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.outfit-input {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: #1a1a1a;
+  border: 3px solid black;
+  color: white;
+  font-weight: bold;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.outfit-input:focus {
+  border-color: #ff2d7a;
+}
+
+.outfit-select {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: #1a1a1a;
+  border: 3px solid black;
+  color: white;
+  font-weight: bold;
+  box-sizing: border-box;
+  cursor: pointer;
+  outline: none;
+}
+
+.outfit-notes {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: #1a1a1a;
+  border: 3px solid black;
+  color: white;
+  font-weight: bold;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  font-family: inherit;
+}
+
+/* ── Buttons ── */
+.outfit-btn-yellow {
+  padding: 12px 20px;
+  background: #ffe600;
+  border: 3px solid black;
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: black;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 black;
+  transition: 0.2s;
+  text-transform: uppercase;
+}
+
+.outfit-btn-yellow:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 black;
+  background: #ff2d7a;
+  color: white;
+}
+
+.outfit-btn-danger {
+  padding: 12px 20px;
+  background: #1a1a1a;
+  border: 3px solid #ff2d7a;
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: #ff2d7a;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #ff2d7a;
+  transition: 0.2s;
+  text-transform: uppercase;
+}
+
+.outfit-btn-danger:hover {
+  background: #ff2d7a;
+  color: white;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 black;
+}
+
+.outfit-btn-ghost {
+  padding: 8px 14px;
+  background: transparent;
+  border: 2px solid #00f5d4;
+  color: #00f5d4;
+  font-weight: bold;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: 0.2s;
+  white-space: nowrap;
+}
+
+.outfit-btn-ghost:hover {
+  background: #00f5d4;
+  color: black;
+}
