@@ -19,6 +19,11 @@ interface Outfit {
     items: Item[];
 }
 
+interface SlotPickerState {
+    type: Item['type'];
+    currentItem?: Item; // present when slot is already filled (swap mode)
+}
+
 type CatalogTab = 'outfits' | 'items';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -59,11 +64,9 @@ function OutfitManagerPage() {
     const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
     const [editingItem, setEditingItem]       = useState<Item | null>(null);
     const [isNewItem, setIsNewItem]           = useState(false);
+    const [slotPicker, setSlotPicker]         = useState<SlotPickerState | null>(null);
     const [outfitSearch, setOutfitSearch]     = useState('');
     const [itemSearch, setItemSearch]         = useState('');
-
-    // Slot picker: when user clicks empty slot, show picker to choose existing or new
-    const [slotPicker, setSlotPicker] = useState<{ type: Item['type'] } | null>(null);
 
     // ── Outfit Helpers ─────────────────────────────────────────────────────────
 
@@ -146,19 +149,15 @@ function OutfitManagerPage() {
 
     function handleClickSlot(type: Item['type']) {
         const existing = getSlotItem(type);
-        if (existing) {
-            // Slot is filled → open edit modal directly
-            openEditItem(existing);
-        } else {
-            // Slot is empty → show picker: choose existing item or create new
-            setSlotPicker({ type });
-        }
+        // Always open the slot picker:
+        // - empty slot: shows catalog + create new
+        // - filled slot: shows current item with edit/swap options + catalog
+        setSlotPicker({ type, currentItem: existing });
     }
 
-    // User picks an existing item from their catalog to put in the slot
     function handleAssignExistingToSlot(item: Item, type: Item['type']) {
         if (!selectedOutfit) return;
-        const assigned = { ...item, type }; // keep same item but assign to this slot type
+        const assigned = { ...item, type };
         const updatedItems = [
             ...selectedOutfit.items.filter(i => i.type !== type),
             assigned
@@ -179,7 +178,7 @@ function OutfitManagerPage() {
                 : [...prev, item];
         });
 
-        // If an outfit is selected, also sync it into that outfit
+        // Sync into selected outfit if applicable
         if (selectedOutfit) {
             const existsInOutfit = selectedOutfit.items.find(i => i.itemId === item.itemId);
             const updatedItems = existsInOutfit
@@ -384,12 +383,14 @@ function OutfitManagerPage() {
                 </div>
             </div>
 
-            {/* ── SLOT PICKER — choose existing item or create new ── */}
+            {/* ── SLOT PICKER — empty slot OR swap for filled slot ── */}
             {slotPicker && selectedOutfit && (
                 <SlotPicker
                     slotType={slotPicker.type}
+                    currentItem={slotPicker.currentItem}
                     allItems={allItems}
                     onPickExisting={(item) => handleAssignExistingToSlot(item, slotPicker.type)}
+                    onEditCurrent={() => slotPicker.currentItem && openEditItem(slotPicker.currentItem)}
                     onCreateNew={() => openNewItem(slotPicker.type)}
                     onClose={() => setSlotPicker(null)}
                 />
@@ -410,36 +411,73 @@ function OutfitManagerPage() {
 }
 
 // ─── Slot Picker ──────────────────────────────────────────────────────────────
-// Shows when user clicks an empty slot — lets them pick from existing items
-// or create a brand new one
 
 interface SlotPickerProps {
     slotType: Item['type'];
+    currentItem?: Item;
     allItems: Item[];
     onPickExisting: (item: Item) => void;
+    onEditCurrent: () => void;
     onCreateNew: () => void;
     onClose: () => void;
 }
 
-function SlotPicker({ slotType, allItems, onPickExisting, onCreateNew, onClose }: SlotPickerProps) {
+function SlotPicker({ slotType, currentItem, allItems, onPickExisting, onEditCurrent, onCreateNew, onClose }: SlotPickerProps) {
     const [search, setSearch] = useState('');
 
-    const compatible = allItems.filter(i => {
+    // Exclude the current item from the swap list so you can't swap with itself
+    const swapCandidates = allItems.filter(i => {
+        if (i.itemId === currentItem?.itemId) return false;
         const q = search.toLowerCase().trim();
-        return (!q || i.name.toLowerCase().includes(q) || i.tags.some(t => t.toLowerCase().includes(q)));
+        if (!q) return true;
+        return (
+            i.name.toLowerCase().includes(q) ||
+            i.type.toLowerCase().includes(q) ||
+            i.tags.some(t => t.toLowerCase().includes(q))
+        );
     });
+
+    const isSwapMode = !!currentItem;
 
     return (
         <div className="om-modal-overlay">
             <div className="om-modal">
+
                 <div className="om-modal-header">
                     <h2 className="graffiti-title" style={{ fontSize: '1.2rem', margin: 0 }}>
-                        {SLOT_EMOJI[slotType]} {slotType} SLOT
+                        {SLOT_EMOJI[slotType]} {isSwapMode ? `SWAP ${slotType}` : `${slotType} SLOT`}
                     </h2>
                     <button className="om-btn-ghost" onClick={onClose}>✕</button>
                 </div>
 
-                <p className="om-picker-hint">Pick from your existing items or create a new one.</p>
+                {/* ── CURRENT ITEM (swap mode only) ── */}
+                {isSwapMode && currentItem && (
+                    <div className="om-picker-current">
+                        <div className="om-picker-current-label">CURRENTLY EQUIPPED</div>
+                        <div className="om-picker-current-item">
+                            <div className="om-picker-current-info">
+                                {currentItem.imageURL
+                                    ? <img className="om-picker-current-thumb" src={currentItem.imageURL} alt={currentItem.name} />
+                                    : <span className="om-picker-item-emoji">{SLOT_EMOJI[currentItem.type]}</span>
+                                }
+                                <div className="om-picker-item-info">
+                                    <span className="om-picker-item-name">{currentItem.name || 'Unnamed'}</span>
+                                    <span className="om-picker-item-type">{currentItem.type}</span>
+                                </div>
+                            </div>
+                            <button className="om-btn-cyan" style={{ padding: '6px 12px', fontSize: '0.75rem' }} onClick={onEditCurrent}>
+                                EDIT
+                            </button>
+                        </div>
+                        <div className="om-picker-divider">
+                            <span>SWAP WITH</span>
+                        </div>
+                    </div>
+                )}
+
+                {!isSwapMode && (
+                    <p className="om-picker-hint">Pick from your existing items or create a new one.</p>
+                )}
 
                 <input
                     className="om-input"
@@ -449,35 +487,42 @@ function SlotPicker({ slotType, allItems, onPickExisting, onCreateNew, onClose }
                     autoFocus
                 />
 
-                {/* Existing items list */}
+                {/* Catalog list */}
                 <div className="om-picker-list">
-                    {compatible.length === 0 ? (
-                        <p className="om-picker-empty">No items found.</p>
+                    {swapCandidates.length === 0 ? (
+                        <p className="om-picker-empty">
+                            {allItems.length === 0
+                                ? 'No items in your catalog yet.'
+                                : 'No other items match your search.'}
+                        </p>
                     ) : (
-                        compatible.map(item => (
+                        swapCandidates.map(item => (
                             <div
                                 key={item.itemId}
                                 className="om-picker-item"
                                 onClick={() => onPickExisting(item)}
                             >
-                                <span className="om-picker-item-emoji">
-                                    {SLOT_EMOJI[item.type]}
-                                </span>
+                                {item.imageURL
+                                    ? <img className="om-slot-thumb" src={item.imageURL} alt={item.name} />
+                                    : <span className="om-picker-item-emoji">{SLOT_EMOJI[item.type]}</span>
+                                }
                                 <div className="om-picker-item-info">
                                     <span className="om-picker-item-name">{item.name || 'Unnamed'}</span>
                                     <span className="om-picker-item-type">{item.type}</span>
                                 </div>
-                                {item.imageURL && (
-                                    <img className="om-slot-thumb" src={item.imageURL} alt={item.name} />
-                                )}
                             </div>
                         ))
                     )}
                 </div>
 
-                <button className="om-btn-cyan" style={{ width: '100%', marginTop: '0.75rem' }} onClick={onCreateNew}>
+                <button
+                    className="om-btn-yellow"
+                    style={{ width: '100%', marginTop: '0.75rem' }}
+                    onClick={onCreateNew}
+                >
                     + CREATE NEW {slotType}
                 </button>
+
             </div>
         </div>
     );
@@ -514,6 +559,7 @@ function ItemEditModal({ item, isNew, onSave, onDelete, onClose }: ItemEditModal
     return (
         <div className="om-modal-overlay">
             <div className="om-modal">
+
                 <div className="om-modal-header">
                     <h2 className="graffiti-title" style={{ fontSize: '1.3rem', margin: 0 }}>
                         {isNew ? 'NEW ITEM' : 'EDIT ITEM'}
@@ -550,6 +596,7 @@ function ItemEditModal({ item, isNew, onSave, onDelete, onClose }: ItemEditModal
                         <button className="om-btn-danger" onClick={() => onDelete(item.itemId)}>DELETE</button>
                     )}
                 </div>
+
             </div>
         </div>
     );
