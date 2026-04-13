@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-import ItemPage from "./pages/ItemPage";
+import OutfitManagerPage from "./pages/OutfitManagerPage";
 import { getAccessToken } from "./utils/session";
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
@@ -20,10 +20,10 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route
-          path="/items"
+          path="/outfits"
           element={
             <ProtectedRoute>
-              <ItemPage />
+              <OutfitManagerPage />
             </ProtectedRoute>
           }
         />

@@ -18,7 +18,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   if (getAccessToken()) {
-    return <Navigate replace to="/items" />;
+    return <Navigate replace to="/outfits" />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +54,7 @@ export default function LoginPage() {
         email: email.trim(),
       });
 
-      navigate("/items");
+      navigate("/outfits");
     } catch (submitError) {
       setError("We couldn't reach the server. Please try again.");
     } finally {
