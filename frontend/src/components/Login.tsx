@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { buildPath } from './Path';
-import { storeToken } from '../../tokenStorage'; // ✅ FIXED PATH
 import { useNavigate } from 'react-router-dom';
+import { storeAccessToken } from '../utils/session';
 
 function Login() {
     const [message, setMessage] = useState('');
@@ -31,7 +31,7 @@ function Login() {
             }
 
             // Store token
-            storeToken(res);
+            storeAccessToken(res.accessToken);
 
             // Decode JWT
             const payload = JSON.parse(atob(res.accessToken.split('.')[1]));
