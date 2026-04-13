@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { buildPath } from './Path';
-import { retrieveToken, storeToken } from '../../../tokenStorage';
+import { getAccessToken, storeAccessToken } from '../utils/session';
 
 function ItemUI() {
     const [message, setMessage] = useState('');
@@ -17,7 +17,7 @@ function ItemUI() {
 
     async function addItem(e: any): Promise<void> {
         e.preventDefault();
-        var obj = { userId: userId, item: item, jwtToken: retrieveToken() };
+        var obj = { userId: userId, item: item, jwtToken: getAccessToken() };
         var js = JSON.stringify(obj);
         try {
             const response = await fetch(buildPath('api/additem'),
@@ -29,7 +29,7 @@ function ItemUI() {
             }
             else {
                 setMessage('Item has been added');
-                storeToken(res.jwtToken);
+                storeAccessToken(res.jwtToken.accessToken);
             }
         }
         catch (error: any) {
@@ -39,7 +39,7 @@ function ItemUI() {
 
     async function searchItem(e: any): Promise<void> {
         e.preventDefault();
-        var obj = { userId: userId, search: search, jwtToken: retrieveToken() };
+        var obj = { userId: userId, search: search, jwtToken: getAccessToken() };
         var js = JSON.stringify(obj);
         try {
             const response = await fetch(buildPath('api/searchitems'),
@@ -55,7 +55,7 @@ function ItemUI() {
                 }
             }
             setResults('Item(s) have been retrieved');
-            storeToken(res.jwtToken);
+            storeAccessToken(res.jwtToken.accessToken);
             setItemList(resultText);
         }
         catch (error: any) {

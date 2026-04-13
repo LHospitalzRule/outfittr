@@ -14,7 +14,6 @@ exports.setApp = function (app, client) {
             .find({ login: login, password: password })
             .toArray();
 
-        console.log(results[0]); // debug line
         var id = -1;
         var fn = '';
         var ln = '';
@@ -22,8 +21,8 @@ exports.setApp = function (app, client) {
 
         if (results.length > 0) {
             id = results[0]._id;
-            fn = results[0].firstName;
-            ln = results[0].lastName;
+            fn = results[0].firstName || results[0].login || 'Member';
+            ln = results[0].lastName || '';
             try {
                 ret = token.createToken(fn, ln, id);
             } catch (e) {
@@ -38,7 +37,7 @@ exports.setApp = function (app, client) {
 
     // ─── REGISTER ─────────────────────────────────────────────────────────────
     app.post('/api/register', async (req, res, next) => {
-        // incoming: login, password, firstName, lastName
+        // incoming: login, password
         // outgoing: error, jwtToken
         const { login, password, firstName, lastName } = req.body;
 
@@ -52,13 +51,20 @@ exports.setApp = function (app, client) {
                 return;
             }
 
-            const newUser = { login: login, password: password, firstName: firstName, lastName: lastName };
+            const savedFirstName = (firstName || login || 'Member').trim();
+            const savedLastName = (lastName || '').trim();
+            const newUser = {
+                login: login,
+                password: password,
+                firstName: savedFirstName,
+                lastName: savedLastName
+            };
             const result = await db.collection('Users').insertOne(newUser);
 
             const id = result.insertedId;
             var ret;
             try {
-                ret = token.createToken(firstName, lastName, id);
+                ret = token.createToken(savedFirstName, savedLastName, id);
             } catch (e) {
                 ret = { error: e.message, jwtToken: '' };
             }
@@ -129,7 +135,10 @@ exports.setApp = function (app, client) {
         var _search = search.trim();
         const db = client.db('OutfittrDB');
         const results = await db.collection('Items')
-            .find({ "Item": { $regex: _search + '.*', $options: 'i' } })
+            .find({
+                UserId: userId,
+                "Item": { $regex: _search + '.*', $options: 'i' }
+            })
             .toArray();
 
         var _ret = [];
