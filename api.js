@@ -1,5 +1,8 @@
 require('express');
 require('mongodb');
+const multer = require('multer');
+const { storage } = require('./cloudinaryConfig');
+const upload = multer({ storage });
 var token = require('./createJWT.js');
 
 exports.setApp = function (app, client) {
@@ -61,51 +64,67 @@ exports.setApp = function (app, client) {
     });
 
     // ─── ADD ITEM ─────────────────────────────────────────────────────────────────
-    app.post('/api/additem', async (req, res, next) => {
-        const { userId, item, jwtToken } = req.body;
+app.post('/api/additem', upload.single('image'), async (req, res, next) => {
+    // 1. In FormData, text fields are in req.body
+    const { userId, name, type, tags, notes, jwtToken } = req.body;
 
-        if (token.isExpired(jwtToken)) {
-            return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
-        }
+    if (token.isExpired(jwtToken)) {
+        return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
+    }
 
-        const newItem = { Item: item, UserId: userId };
-        let error = '';
+    const imageURL = req.file ? req.file.path : '';
 
-        try {
-            const db = client.db('OutfittrDB');
-            await db.collection('Items').insertOne(newItem);
-        } catch (e) {
-            error = e.toString();
-        }
+    const newItem = { 
+        UserId: userId, 
+        name: name,
+        type: type,
+        tags: tags ? tags.split(',') : [], // Convert string back to array
+        notes: notes,
+        imageURL: imageURL // Stored Cloudinary URL
+    };
 
-        let refreshedToken = null;
-        try {
-            refreshedToken = token.refresh(jwtToken);
-        } catch (e) {
-            console.log("Refresh error: " + e.message);
-        }
+    let error = '';
+    try {
+        const db = client.db('OutfittrDB');
+        await db.collection('Items').insertOne(newItem);
+    } catch (e) {
+        error = e.toString();
+    }
 
-        res.status(200).json({ error: error, accessToken: refreshedToken.accessToken });
+    // Refresh Token
+    let refreshedToken = { accessToken: '' };
+    try {
+        refreshedToken = token.refresh(jwtToken);
+    } catch (e) {
+        console.log("Refresh error: " + e.message);
+    }
+
+    res.status(200).json({ 
+        error: error, 
+        accessToken: refreshedToken.accessToken,
+        item: newItem 
     });
+});
 
     // ─── SEARCH ITEMS ─────────────────────────────────────────────────────────────
-    app.post('/api/searchitems', async (req, res, next) => {
+    app.post('/api/searchitems', async (req, res) => {
         const { userId, search, jwtToken } = req.body;
 
         if (token.isExpired(jwtToken)) {
             return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
         }
 
-        const _search = search.trim();
         const db = client.db('OutfittrDB');
+        const _search = search ? search.trim() : "";
+
         const results = await db.collection('Items')
             .find({
                 UserId: userId,
-                "Item": { $regex: _search + '.*', $options: 'i' }
+                "name": { $regex: _search + '.*', $options: 'i' }
             })
             .toArray();
 
-        const _ret = results.map(doc => doc.Item);
+        const _ret = results;
 
         let refreshedToken = null;
         try {
