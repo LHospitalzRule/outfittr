@@ -81,6 +81,19 @@ function normalizeItem(rawItem: any): Item {
     };
 }
 
+function normalizeOutfit(rawOutfit: any): Outfit {
+    const items = Array.isArray(rawOutfit.items)
+        ? rawOutfit.items.map(normalizeItem)
+        : [];
+
+    return {
+        outfitId: rawOutfit.outfitId || rawOutfit._id || Date.now().toString(),
+        name: rawOutfit.name || '',
+        description: rawOutfit.description || '',
+        items
+    };
+}
+
 function loadImage(file: File): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -332,17 +345,111 @@ function OutfitManagerPage() {
         }
     };
 
+    const fetchUserOutfits = async () => {
+        const token = getAccessToken();
+        if (!token || !userId) return;
+
+        try {
+            const response = await fetch(buildPath('api/searchoutfits'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userId,
+                    search: "",
+                    jwtToken: token
+                })
+            });
+
+            const res = await response.json();
+            if (res.error) {
+                console.error("Error fetching outfits:", res.error);
+                return;
+            }
+
+            const loadedOutfits = Array.isArray(res.results)
+                ? res.results.map(normalizeOutfit)
+                : [];
+
+            setOutfits(loadedOutfits);
+            setSelectedOutfit(currentSelected => {
+                if (!currentSelected) {
+                    return loadedOutfits[0] || null;
+                }
+
+                return loadedOutfits.find(outfit => outfit.outfitId === currentSelected.outfitId) || null;
+            });
+        } catch (e) {
+            console.error("Error fetching outfits:", e);
+        }
+    };
+
+    const saveOutfit = async (outfit: Outfit, isNew: boolean = false) => {
+        const token = getAccessToken();
+        if (!token || !userId) {
+            alert("Session expired. Please log in again.");
+            return null;
+        }
+
+        try {
+            const endpoint = isNew ? 'api/addoutfit' : 'api/editoutfit';
+            const body: Record<string, any> = {
+                userId: userId,
+                name: outfit.name,
+                description: outfit.description,
+                itemIds: outfit.items.map(item => item.itemId),
+                jwtToken: token
+            };
+
+            if (!isNew) {
+                body.outfitId = outfit.outfitId;
+            }
+
+            const response = await fetch(buildPath(endpoint), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const res = await response.json();
+            if (res.error) {
+                alert("Error: " + res.error);
+                return null;
+            }
+
+            const savedOutfit = normalizeOutfit(res.outfit || {
+                ...outfit,
+                outfitId: res.id || outfit.outfitId
+            });
+
+            setOutfits(prev => {
+                const exists = prev.some(existing => existing.outfitId === savedOutfit.outfitId);
+                return exists
+                    ? prev.map(existing => existing.outfitId === savedOutfit.outfitId ? savedOutfit : existing)
+                    : [...prev, savedOutfit];
+            });
+            setSelectedOutfit(savedOutfit);
+
+            return savedOutfit;
+        } catch (e) {
+            console.error("Error saving outfit:", e);
+            alert("Network error: " + e);
+            return null;
+        }
+    };
+
     useEffect(() => {
         if (userId) {
             fetchUserItems();
+            fetchUserOutfits();
         }
     }, [userId]);
 
     // ── Outfit Helpers ─────────────────────────────────────────────────────────
 
-    function syncOutfit(updated: Outfit) {
+    async function syncOutfit(updated: Outfit) {
         setSelectedOutfit(updated);
         setOutfits(prev => prev.map(o => o.outfitId === updated.outfitId ? updated : o));
+        await saveOutfit(updated);
     }
 
     function getSlotItem(type: Item['type']): Item | undefined {
@@ -374,27 +481,57 @@ function OutfitManagerPage() {
 
     // ── Outfit Actions ─────────────────────────────────────────────────────────
 
-    function handleNewOutfit() {
+    async function handleNewOutfit() {
         const newOutfit: Outfit = {
-            outfitId: Date.now().toString(),
+            outfitId: '',
             name: 'New Outfit',
             description: '',
             items: []
         };
-        setOutfits(prev => [...prev, newOutfit]);
-        setSelectedOutfit(newOutfit);
+        const savedOutfit = await saveOutfit(newOutfit, true);
+        if (!savedOutfit) {
+            return;
+        }
         setCatalogTab('outfits');
     }
 
-    function handleDeleteOutfit() {
+    async function handleDeleteOutfit() {
         if (!selectedOutfit) return;
-        setOutfits(prev => prev.filter(o => o.outfitId !== selectedOutfit.outfitId));
-        setSelectedOutfit(null);
+
+        const token = getAccessToken();
+        if (!token) {
+            alert("Session expired. Please log in again.");
+            return;
+        }
+
+        try {
+            const response = await fetch(buildPath('api/deleteoutfit'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userId,
+                    outfitId: selectedOutfit.outfitId,
+                    jwtToken: token
+                })
+            });
+
+            const res = await response.json();
+            if (res.error) {
+                alert("Error: " + res.error);
+                return;
+            }
+
+            setOutfits(prev => prev.filter(o => o.outfitId !== selectedOutfit.outfitId));
+            setSelectedOutfit(null);
+        } catch (e) {
+            console.error("Error deleting outfit:", e);
+            alert("Network error: " + e);
+        }
     }
 
     function handleRenameOutfit(name: string) {
         if (!selectedOutfit) return;
-        syncOutfit({ ...selectedOutfit, name });
+        void syncOutfit({ ...selectedOutfit, name });
     }
 
     // ── Item Modal Helpers ─────────────────────────────────────────────────────
@@ -425,7 +562,7 @@ function OutfitManagerPage() {
             ...selectedOutfit.items.filter(i => i.type !== type),
             assigned
         ];
-        syncOutfit({ ...selectedOutfit, items: updatedItems });
+        void syncOutfit({ ...selectedOutfit, items: updatedItems });
         setSlotPicker(null);
     }
 
@@ -456,7 +593,8 @@ function OutfitManagerPage() {
         }
 
         try {
-            const response = await fetch(buildPath('api/additem'), {
+            const endpoint = isNewItem ? 'api/additem' : 'api/edititem';
+            const response = await fetch(buildPath(endpoint), {
                 method: 'POST',
                 body: formData 
             });
@@ -494,7 +632,7 @@ function OutfitManagerPage() {
                 const updatedItems = existsInOutfit
                     ? selectedOutfit.items.map(i => i.itemId === savedItem.itemId ? savedItem : i)
                     : [...selectedOutfit.items.filter(i => i.type !== savedItem.type), savedItem];
-                syncOutfit({ ...selectedOutfit, items: updatedItems });
+                await syncOutfit({ ...selectedOutfit, items: updatedItems });
             }
 
             setEditingItem(null);
@@ -508,7 +646,7 @@ function OutfitManagerPage() {
     function handleDeleteItem(itemId: string) {
         setAllItems(prev => prev.filter(i => i.itemId !== itemId));
         if (selectedOutfit) {
-            syncOutfit({
+            void syncOutfit({
                 ...selectedOutfit,
                 items: selectedOutfit.items.filter(i => i.itemId !== itemId)
             });
