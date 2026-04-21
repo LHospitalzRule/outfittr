@@ -1,5 +1,7 @@
 require('express');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const { ObjectId } = require('mongodb');
 const multer = require('multer');
 const { storage } = require('./cloudinaryConfig');
@@ -29,7 +31,18 @@ async function verifyPassword(password, storedPassword) {
     }
 
     if (!storedPassword.startsWith('scrypt$')) {
-        return password === storedPassword;
+        if (typeof password !== 'string') {
+            return false;
+        }
+
+        const passwordBuffer = Buffer.from(String(password), 'utf8');
+        const storedPasswordBuffer = Buffer.from(storedPassword, 'utf8');
+
+        if (passwordBuffer.length !== storedPasswordBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(passwordBuffer, storedPasswordBuffer);
     }
 
     const parts = storedPassword.split('$');
@@ -126,6 +139,87 @@ function getImageUrl(req) {
         : '';
 }
 
+function getVerificationExpiry() {
+    return new Date(Date.now() + 24 * 60 * 60 * 1000);
+}
+
+function getVerificationToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+function getVerificationLink(tokenValue) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return `${frontendUrl}/verify?token=${tokenValue}`;
+}
+
+function getMailer() {
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return null;
+    }
+
+    return nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        }
+    });
+}
+
+async function sendVerificationEmail(email, verificationLink) {
+    const transporter = getMailer();
+
+    if (!transporter) {
+        console.log(`Verification link for ${email}: ${verificationLink}`);
+        return;
+    }
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_FROM || 'Outfittr <no-reply@example.com>',
+        to: email,
+        subject: 'Verify your Outfittr account',
+        text: `Verify your email by visiting: ${verificationLink}`
+    });
+}
+
+function getBearerToken(req) {
+    const header = req.headers.authorization || '';
+    if (!header.startsWith('Bearer ')) {
+        return '';
+    }
+
+    return header.slice(7).trim();
+}
+
+function resolveAuth(req) {
+    const bearerToken = getBearerToken(req);
+    if (bearerToken) {
+        if (token.isExpired(bearerToken)) {
+            return { error: 'The JWT is no longer valid' };
+        }
+
+        try {
+            const payload = jwt.verify(bearerToken, process.env.ACCESS_TOKEN_SECRET);
+            return {
+                userId: String(payload.userId),
+                jwtToken: bearerToken
+            };
+        } catch (e) {
+            return { error: 'The JWT is no longer valid' };
+        }
+    }
+
+    const userId = req.body.userId;
+    const jwtToken = req.body.jwtToken;
+    if (token.isExpired(jwtToken)) {
+        return { error: 'The JWT is no longer valid' };
+    }
+
+    return { userId: userId, jwtToken: jwtToken };
+}
+
 
 exports.setApp = function (app, client) {
 
@@ -142,13 +236,17 @@ exports.setApp = function (app, client) {
                 return;
             }
 
-            // Upgrade legacy plaintext passwords to a hashed format after a successful login.
+            // Upgrade legacy non-scrypt passwords to a hashed format after a successful login.
             if (typeof user.password === 'string' && !user.password.startsWith('scrypt$')) {
                 const hashedPassword = await hashPassword(password);
                 await db.collection('Users').updateOne(
                     { _id: user._id },
                     { $set: { password: hashedPassword } }
                 );
+            }
+
+            if (user.verified !== true) {
+                return res.status(403).json({ error: 'Please verify your email before logging in' });
             }
 
             const ret = token.createToken(user._id);
@@ -177,45 +275,139 @@ exports.setApp = function (app, client) {
             }
 
             const hashedPassword = await hashPassword(password);
-            const newUser = {
+            const verificationToken = getVerificationToken();
+            const verificationExpires = getVerificationExpiry();
+            await db.collection('Users').insertOne({
                 email: email,
-                password: hashedPassword
-            };
+                password: hashedPassword,
+                verified: false,
+                verificationToken: verificationToken,
+                verificationExpires: verificationExpires
+            });
 
-            const result = await db.collection('Users').insertOne(newUser);
-            const id = result.insertedId;
+            const verificationLink = getVerificationLink(verificationToken);
+            await sendVerificationEmail(email, verificationLink);
 
-            var ret;
-            try {
-                ret = token.createToken(id);
-            } catch (e) {
-                ret = { error: e.message, accessToken: '' };
-            }
-
-            res.status(200).json(ret);
+            return res.status(200).json({
+                error: '',
+                message: 'Check your email for a verification link.'
+            });
         } catch (e) {
             res.status(500).json({ error: e.toString(), accessToken: '' });
         }
     });
 
+    app.get('/api/verify', async (req, res) => {
+        const verificationToken = req.query.token;
+
+        if (!verificationToken) {
+            return res.status(400).json({ error: 'Missing verification token' });
+        }
+
+        try {
+            const db = client.db('OutfittrDB');
+            const user = await db.collection('Users').findOne({ verificationToken: verificationToken });
+
+            if (!user) {
+                return res.status(400).json({ error: 'Invalid verification token' });
+            }
+
+            if (!user.verificationExpires || new Date(user.verificationExpires) < new Date()) {
+                return res.status(400).json({ error: 'Verification token has expired' });
+            }
+
+            await db.collection('Users').updateOne(
+                { _id: user._id },
+                {
+                    $set: { verified: true },
+                    $unset: { verificationToken: '', verificationExpires: '' }
+                }
+            );
+
+            return res.status(200).json({ message: 'Email verified successfully' });
+        } catch (e) {
+            return res.status(500).json({ error: 'Unable to verify email' });
+        }
+    });
+
+    app.post('/api/resend-verification', async (req, res) => {
+        const { email } = req.body;
+
+        try {
+            const db = client.db('OutfittrDB');
+            const user = await db.collection('Users').findOne({ email: email });
+
+            if (user && user.verified !== true) {
+                const verificationToken = getVerificationToken();
+                const verificationExpires = getVerificationExpiry();
+
+                await db.collection('Users').updateOne(
+                    { _id: user._id },
+                    {
+                        $set: {
+                            verificationToken: verificationToken,
+                            verificationExpires: verificationExpires
+                        }
+                    }
+                );
+
+                const verificationLink = getVerificationLink(verificationToken);
+                await sendVerificationEmail(email, verificationLink);
+            }
+
+            return res.status(200).json({
+                message: 'If that account exists and is not verified, a new verification email has been sent.'
+            });
+        } catch (e) {
+            return res.status(500).json({ error: 'Unable to resend verification email' });
+        }
+    });
+
+    app.get('/api/me', async (req, res) => {
+        const bearerToken = getBearerToken(req);
+        if (!bearerToken) {
+            return res.status(401).json({ error: 'Missing authorization token' });
+        }
+
+        if (token.isExpired(bearerToken)) {
+            return res.status(401).json({ error: 'Token expired or invalid' });
+        }
+
+        try {
+            const payload = jwt.verify(bearerToken, process.env.ACCESS_TOKEN_SECRET);
+            const db = client.db('OutfittrDB');
+            const user = await db.collection('Users').findOne({ _id: new ObjectId(payload.userId) });
+
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            return res.status(200).json({
+                userId: String(user._id),
+                email: user.email,
+                verified: user.verified === true
+            });
+        } catch (e) {
+            return res.status(401).json({ error: 'Token expired or invalid' });
+        }
+    });
+
     // ─── ADD ITEM ─────────────────────────────────────────────────────────────────
     app.post('/api/additem', upload.single('image'), async (req, res, next) => {
-        const { userId, name, type, tags, notes, jwtToken } = req.body;
+        const { name, type, tags, notes } = req.body;
+        const auth = resolveAuth(req);
 
-        // Note: Because jwtToken is inside the FormData body, multer MUST run first to parse it.
-        // In the future, passing tokens in the 'Authorization' header instead of req.body 
-        // will allow you to validate the token BEFORE multer uploads the file to Cloudinary.
-        if (token.isExpired(jwtToken)) {
+        if (auth.error) {
             return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
         }
 
-        //extract Cloudinary URL using secure_url fallback
+        // Extract Cloudinary URL using secure_url fallback
         const imageURL = getImageUrl(req);
 
         const formattedTags = parseTags(tags);
 
         const newItem = { 
-            UserId: userId, 
+            UserId: auth.userId,
             name: name,
             type: type,
             tags: formattedTags, 
@@ -235,7 +427,7 @@ exports.setApp = function (app, client) {
         // Refresh Token
         let refreshedToken = { accessToken: '' };
         try {
-            refreshedToken = token.refresh(jwtToken);
+            refreshedToken = token.refresh(auth.jwtToken);
         } catch (e) {
             console.log("Refresh error: " + e.message);
         }
@@ -251,9 +443,10 @@ exports.setApp = function (app, client) {
 
     // ─── EDIT ITEM ────────────────────────────────────────────────────────────────
     app.post('/api/edititem', upload.single('image'), async (req, res, next) => {
-        const { userId, itemId, name, type, tags, notes, jwtToken } = req.body;
+        const { itemId, name, type, tags, notes } = req.body;
+        const auth = resolveAuth(req);
 
-        if (token.isExpired(jwtToken)) {
+        if (auth.error) {
             return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
         }
 
@@ -267,7 +460,7 @@ exports.setApp = function (app, client) {
 
             const db = client.db('OutfittrDB');
             const items = db.collection('Items');
-            const filter = { _id: new ObjectId(itemId), UserId: userId };
+            const filter = { _id: new ObjectId(itemId), UserId: auth.userId };
 
             const existingItem = await items.findOne(filter);
             if (!existingItem) {
@@ -275,7 +468,7 @@ exports.setApp = function (app, client) {
             }
 
             const updateDoc = {
-                UserId: userId,
+                UserId: auth.userId,
                 name: name,
                 type: type,
                 tags: parseTags(tags),
@@ -291,7 +484,7 @@ exports.setApp = function (app, client) {
 
         let refreshedToken = { accessToken: '' };
         try {
-            refreshedToken = token.refresh(jwtToken);
+            refreshedToken = token.refresh(auth.jwtToken);
         } catch (e) {
             console.log("Refresh error: " + e.message);
         }
@@ -353,11 +546,12 @@ exports.setApp = function (app, client) {
 
     // ─── SEARCH ITEMS ─────────────────────────────────────────────────────────────
     
-    //added upload.none() to allow Express to read FormData from the frontend
+    // Added upload.none() to allow Express to read FormData from the frontend
     app.post('/api/searchitems', upload.none(), async (req, res) => {
-        const { userId, search, jwtToken } = req.body;
+        const { search } = req.body;
+        const auth = resolveAuth(req);
 
-        if (token.isExpired(jwtToken)) {
+        if (auth.error) {
             return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
         }
 
@@ -366,14 +560,14 @@ exports.setApp = function (app, client) {
 
         const results = await db.collection('Items')
             .find({
-                UserId: userId,
+                UserId: auth.userId,
                 "name": { $regex: _search + '.*', $options: 'i' }
             })
             .toArray();
 
         let refreshedToken = { accessToken: '' };
         try {
-            refreshedToken = token.refresh(jwtToken);
+            refreshedToken = token.refresh(auth.jwtToken);
         } catch (e) {
             console.log("Refresh error: " + e.message);
         }

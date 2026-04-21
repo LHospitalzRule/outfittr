@@ -9,10 +9,6 @@ function ItemUI() {
     const [search, setSearchValue] = React.useState('');
     const [item, setItemNameValue] = React.useState('');
 
-    var _ud = localStorage.getItem('user_data');
-    var ud = JSON.parse(String(_ud));
-    var userId = ud.id;
-
     async function addItem(e: any): Promise<void> {
         e.preventDefault();
         
@@ -24,9 +20,7 @@ function ItemUI() {
         }
 
         const formData = new FormData();
-        formData.append('userId', userId);
         formData.append('name', item); 
-        formData.append('jwtToken', token);
         
         const fileInput = document.getElementById('itemImage') as HTMLInputElement;
         if (fileInput?.files?.[0]) {
@@ -36,6 +30,7 @@ function ItemUI() {
         try {
             const response = await fetch(buildPath('api/additem'), { 
                 method: 'POST', 
+                headers: { Authorization: `Bearer ${token}` },
                 body: formData
             });
             
@@ -44,7 +39,9 @@ function ItemUI() {
                 setMessage("API Error:" + res.error);
             } else {
                 setMessage('Item has been added');
-                storeAccessToken(res.accessToken);
+                if (res.accessToken) {
+                    storeAccessToken(res.accessToken);
+                }
             }
         } catch (error: any) {
             setMessage(error.toString());
@@ -53,11 +50,17 @@ function ItemUI() {
 
     async function searchItem(e: any): Promise<void> {
         e.preventDefault();
-        var obj = { userId: userId, search: search, jwtToken: getAccessToken() };
+        const token = getAccessToken();
+        if (!token) {
+            setResults("You must be logged in to search items.");
+            return;
+        }
+
+        var obj = { search: search };
         var js = JSON.stringify(obj);
         try {
             const response = await fetch(buildPath('api/searchitems'),
-                { method: 'POST', body: js, headers: { 'Content-Type': 'application/json' } });
+                { method: 'POST', body: js, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
             let txt = await response.text();
             let res = JSON.parse(txt);
             let _results = res.results;
@@ -69,7 +72,9 @@ function ItemUI() {
                 }
             }
             setResults('Item(s) have been retrieved');
-            storeAccessToken(res.jwtToken.accessToken);
+            if (res.accessToken) {
+                storeAccessToken(res.accessToken);
+            }
             setItemList(resultText);
         }
         catch (error: any) {

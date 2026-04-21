@@ -12,7 +12,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
+  const [showResend, setShowResend] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const navigate = useNavigate();
 
@@ -21,6 +24,8 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     setError("");
+    setResendMessage("");
+    setShowResend(false);
 
     try {
       const response = await fetch(buildApiPath("api/login"), {
@@ -35,7 +40,12 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (!result.accessToken) {
-        setError(result.error || "Unable to sign in.");
+        const loginError = result.error || "Unable to sign in.";
+        setError(loginError);
+        setShowResend(
+          response.status === 403 &&
+            loginError === "Please verify your email before logging in"
+        );
         return;
       }
 
@@ -52,6 +62,35 @@ export default function LoginPage() {
       setError("We couldn't reach the server. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsResending(true);
+    setError("");
+    setResendMessage("");
+
+    try {
+      const response = await fetch(buildApiPath("api/resend-verification"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setError(result.error || "Unable to resend verification email.");
+        return;
+      }
+
+      setResendMessage(
+        result.message || "Verification email sent. Please check your inbox."
+      );
+    } catch (resendError) {
+      setError("We couldn't reach the server. Please try again.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -124,6 +163,18 @@ export default function LoginPage() {
             />
 
             {error ? <p className="form-feedback error-text">{error}</p> : null}
+            {resendMessage ? (
+              <p className="form-feedback">{resendMessage}</p>
+            ) : null}
+            {showResend ? (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={isResending || !email.trim()}
+              >
+                {isResending ? "SENDING..." : "RESEND VERIFICATION EMAIL"}
+              </button>
+            ) : null}
 
             <button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "ENTERING..." : "ENTER"}
