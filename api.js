@@ -31,6 +31,10 @@ async function verifyPassword(password, storedPassword) {
     }
 
     if (!storedPassword.startsWith('scrypt$')) {
+        if (typeof password !== 'string') {
+            return false;
+        }
+
         const passwordBuffer = Buffer.from(String(password), 'utf8');
         const storedPasswordBuffer = Buffer.from(storedPassword, 'utf8');
 
