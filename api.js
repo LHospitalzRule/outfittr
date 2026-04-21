@@ -31,7 +31,14 @@ async function verifyPassword(password, storedPassword) {
     }
 
     if (!storedPassword.startsWith('scrypt$')) {
-        return password === storedPassword;
+        const passwordBuffer = Buffer.from(String(password), 'utf8');
+        const storedPasswordBuffer = Buffer.from(storedPassword, 'utf8');
+
+        if (passwordBuffer.length !== storedPasswordBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(passwordBuffer, storedPasswordBuffer);
     }
 
     const parts = storedPassword.split('$');
@@ -225,7 +232,7 @@ exports.setApp = function (app, client) {
                 return;
             }
 
-            // Upgrade legacy plaintext passwords to a hashed format after a successful login.
+            // Upgrade legacy non-scrypt passwords to a hashed format after a successful login.
             if (typeof user.password === 'string' && !user.password.startsWith('scrypt$')) {
                 const hashedPassword = await hashPassword(password);
                 await db.collection('Users').updateOne(
@@ -390,7 +397,7 @@ exports.setApp = function (app, client) {
             return res.status(200).json({ error: 'The JWT is no longer valid', accessToken: '' });
         }
 
-        //extract Cloudinary URL using secure_url fallback
+        // Extract Cloudinary URL using secure_url fallback
         const imageURL = getImageUrl(req);
 
         const formattedTags = parseTags(tags);
@@ -535,7 +542,7 @@ exports.setApp = function (app, client) {
 
     // ─── SEARCH ITEMS ─────────────────────────────────────────────────────────────
     
-    //added upload.none() to allow Express to read FormData from the frontend
+    // Added upload.none() to allow Express to read FormData from the frontend
     app.post('/api/searchitems', upload.none(), async (req, res) => {
         const { search } = req.body;
         const auth = resolveAuth(req);
