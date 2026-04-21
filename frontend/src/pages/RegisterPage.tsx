@@ -8,6 +8,15 @@ import {
   storeUser,
 } from "../utils/session";
 
+const PASSWORD_REQUIREMENTS_MESSAGE =
+  "Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 digit, and 1 special character.";
+
+function isPasswordValid(password: string) {
+  return /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/.test(
+    password || "",
+  );
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,6 +31,11 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     setSuccessMessage("");
+
+    if (!isPasswordValid(password)) {
+      setError(PASSWORD_REQUIREMENTS_MESSAGE);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -143,6 +157,10 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+
+            <p className="form-feedback">
+              {PASSWORD_REQUIREMENTS_MESSAGE}
+            </p>
 
             <input
               type="password"
