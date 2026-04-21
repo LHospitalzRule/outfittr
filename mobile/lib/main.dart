@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/outfit_manager_screen.dart';
 import 'services/auth_service.dart';
+import 'theme/app_theme.dart';
+import 'widgets/graffiti_background.dart';
 
 void main() async
 {
@@ -23,7 +25,7 @@ class OutfittrApp extends StatelessWidget
   {
     return MaterialApp(
       title: 'Outfittr',
-      theme: ThemeData(primarySwatch: Colors.indigo),
+      theme: buildAppTheme(),
       debugShowCheckedModeBanner: false,
       home: const _AuthGate(),
     );
@@ -72,7 +74,13 @@ class _AuthGateState extends State<_AuthGate>
   {
     if (_loggedIn == null)
     {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: GraffitiBackground(
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.accentCoral),
+          ),
+        ),
+      );
     }
     return _loggedIn! ? const OutfitManagerScreen() : const LoginScreen();
   }

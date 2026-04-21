@@ -1,10 +1,18 @@
-// OutfitManagerScreen — lists the user's outfits and supports create / edit / delete.
+// OutfitManagerScreen — home after login. Bottom tab nav with Preview (build /
+// edit an outfit with the Professor model), Items (wardrobe grid), and Outfits
+// (saved-outfits list). Shares a custom pink "OUTFITTR" navbar across tabs.
 
 import 'package:flutter/material.dart';
 
+import '../models/item.dart';
 import '../models/outfit.dart';
 import '../services/auth_service.dart';
 import '../services/outfit_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/graffiti_background.dart';
+import '../widgets/items_tab.dart';
+import '../widgets/outfit_preview_tab.dart';
+import '../widgets/outfits_tab.dart';
 import 'login_screen.dart';
 
 class OutfitManagerScreen extends StatefulWidget
@@ -17,7 +25,12 @@ class OutfitManagerScreen extends StatefulWidget
 
 class _OutfitManagerScreenState extends State<OutfitManagerScreen>
 {
+  int _tabIndex = 0;
   List<Outfit> _outfits = [];
+  // Items list is populated from outfits' embedded items (deduped by id) since
+  // mobile has no standalone ItemService yet.
+  List<Item> _items = [];
+  Outfit? _editing;
   bool _loading = true;
   String? _error;
 
@@ -28,8 +41,8 @@ class _OutfitManagerScreenState extends State<OutfitManagerScreen>
     _load();
   }
 
-  // Fetches the outfit list. If the server reports the JWT is expired, AuthService.logout
-  // has already run inside the service — bounce the user back to Login.
+  // Fetches the outfit list. If the JWT is expired, AuthService.logout has
+  // already run — bounce back to Login in that case.
   Future<void> _load() async
   {
     setState(() { _loading = true; _error = null; });
@@ -49,10 +62,24 @@ class _OutfitManagerScreenState extends State<OutfitManagerScreen>
       return;
     }
 
-    setState(() { _loading = false; _outfits = result.data ?? []; });
+    final outfits = result.data ?? [];
+    // Derive a flat items pool from whatever items came back embedded on outfits.
+    final Map<String, Item> itemsById = {};
+    for (final o in outfits)
+    {
+      for (final i in o.items)
+      {
+        itemsById[i.id] = i;
+      }
+    }
+
+    setState(() {
+      _loading = false;
+      _outfits = outfits;
+      _items = itemsById.values.toList();
+    });
   }
 
-  // Clears the token and replaces the stack with the Login screen.
   Future<void> _logout() async
   {
     await AuthService.logout();
@@ -68,26 +95,27 @@ class _OutfitManagerScreenState extends State<OutfitManagerScreen>
     );
   }
 
-  // Opens the create/edit form. When outfit is null we're creating; otherwise editing.
-  Future<void> _openEditor({Outfit? outfit}) async
-  {
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => _OutfitEditor(outfit: outfit)),
-    );
-    if (changed == true) await _load();
-  }
-
   // Prompts for confirmation, deletes the outfit, and refreshes the list.
   Future<void> _confirmDelete(Outfit outfit) async
   {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete "${outfit.name}"?'),
-        content: const Text('This cannot be undone.'),
+        backgroundColor: AppColors.panelDark,
+        title: Text('Delete "${outfit.name}"?', style: AppTextStyles.heading),
+        content: const Text('This cannot be undone.', style: AppTextStyles.body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL', style: AppTextStyles.link),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'DELETE',
+              style: AppTextStyles.link.copyWith(color: AppColors.errorText),
+            ),
+          ),
         ],
       ),
     );
@@ -102,184 +130,185 @@ class _OutfitManagerScreenState extends State<OutfitManagerScreen>
           .showSnackBar(SnackBar(content: Text(result.error ?? 'Delete failed')));
       return;
     }
+
+    // If we were editing the outfit we just deleted, clear the editor.
+    if (_editing?.id == outfit.id)
+    {
+      setState(() => _editing = null);
+    }
     await _load();
   }
 
+  // Switches to the Preview tab seeded with the given outfit for editing.
+  void _editOutfit(Outfit outfit)
+  {
+    setState(() {
+      _editing = outfit;
+      _tabIndex = 0;
+    });
+  }
+
+  // Clears the editor state and jumps to the Preview tab to start a new outfit.
+  void _startNewOutfit()
+  {
+    setState(() {
+      _editing = null;
+      _tabIndex = 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context)
   {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Outfits'),
-        actions: [
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
-          IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: 'Logout'),
-        ],
+      extendBody: true,
+      body: GraffitiBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _Navbar(onLogout: _logout),
+              Expanded(child: _buildBody()),
+            ],
+          ),
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditor(),
-        child: const Icon(Icons.add),
-      ),
-      body: _buildBody(),
+      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
+  // Picks which tab's content to render based on _tabIndex, or a loading /
+  // error placeholder if we're still fetching.
   Widget _buildBody()
   {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Text('Error: $_error'));
-    if (_outfits.isEmpty)
+    if (_loading)
     {
-      return const Center(child: Text('No outfits yet. Tap + to create one.'));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.accentCoral),
+      );
+    }
+    if (_error != null)
+    {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Error: $_error',
+            style: AppTextStyles.error,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
     }
 
-    return ListView.separated(
-      itemCount: _outfits.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
-      itemBuilder: (_, i)
-      {
-        final o = _outfits[i];
-        return ListTile(
-          title: Text(o.name),
-          subtitle: Text(
-            o.description.isEmpty
-                ? '${o.itemIds.length} item(s)'
-                : '${o.description} · ${o.itemIds.length} item(s)',
-          ),
-          onTap: () => _openEditor(outfit: o),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _confirmDelete(o),
-          ),
-        );
-      },
+    // IndexedStack preserves each tab's state when the user switches between them.
+    return IndexedStack(
+      index: _tabIndex,
+      children: [
+        OutfitPreviewTab(
+          editing: _editing,
+          items: _items,
+          onSaved: _load,
+        ),
+        ItemsTab(items: _items),
+        OutfitsTab(
+          outfits: _outfits,
+          onEdit: _editOutfit,
+          onDelete: _confirmDelete,
+          onCreate: _startNewOutfit,
+        ),
+      ],
+    );
+  }
+
+  // Themed bottom nav that matches the dark brand palette.
+  Widget _buildBottomNav()
+  {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.black87,
+        border: Border(top: BorderSide(color: AppColors.accentPink, width: 2)),
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _tabIndex,
+        onTap: (i) => setState(() => _tabIndex = i),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: AppColors.accentAqua,
+        unselectedItemColor: AppColors.textPrimary.withValues(alpha: 0.6),
+        selectedLabelStyle: AppTextStyles.input.copyWith(fontSize: 11),
+        unselectedLabelStyle: AppTextStyles.input.copyWith(fontSize: 11),
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'PREVIEW'),
+          BottomNavigationBarItem(icon: Icon(Icons.checkroom), label: 'ITEMS'),
+          BottomNavigationBarItem(icon: Icon(Icons.style_outlined), label: 'OUTFITS'),
+        ],
+      ),
     );
   }
 }
 
-// Inline create/edit form. Separated from the list screen to keep each widget focused.
-class _OutfitEditor extends StatefulWidget
+// Custom top navbar — pink logo badge on the left, logout button on the right.
+class _Navbar extends StatelessWidget
 {
-  final Outfit? outfit;
-  const _OutfitEditor({this.outfit});
+  final VoidCallback onLogout;
 
-  @override
-  State<_OutfitEditor> createState() => _OutfitEditorState();
-}
-
-class _OutfitEditorState extends State<_OutfitEditor>
-{
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _descCtrl;
-  late final TextEditingController _itemIdsCtrl;
-  bool _submitting = false;
-
-  @override
-  void initState()
-  {
-    super.initState();
-    _nameCtrl = TextEditingController(text: widget.outfit?.name ?? '');
-    _descCtrl = TextEditingController(text: widget.outfit?.description ?? '');
-    // Item IDs are edited as a comma-separated string since a proper picker is out of scope.
-    _itemIdsCtrl = TextEditingController(text: widget.outfit?.itemIds.join(',') ?? '');
-  }
-
-  @override
-  void dispose()
-  {
-    _nameCtrl.dispose();
-    _descCtrl.dispose();
-    _itemIdsCtrl.dispose();
-    super.dispose();
-  }
-
-  // Splits the itemIds text field into a clean list of non-empty ids.
-  List<String> _parseItemIds()
-  {
-    return _itemIdsCtrl.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-  }
-
-  // Dispatches to add or edit depending on whether we opened with an existing outfit.
-  Future<void> _submit() async
-  {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty)
-    {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Name is required')));
-      return;
-    }
-
-    setState(() => _submitting = true);
-
-    final itemIds = _parseItemIds();
-    final description = _descCtrl.text.trim();
-
-    final existing = widget.outfit;
-    final result = existing == null
-        ? await OutfitService.addOutfit(name: name, description: description, itemIds: itemIds)
-        : await OutfitService.editOutfit(
-            outfitId: existing.id,
-            name: name,
-            description: description,
-            itemIds: itemIds,
-          );
-
-    if (!mounted) return;
-    setState(() => _submitting = false);
-
-    if (!result.success)
-    {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(result.error ?? 'Save failed')));
-      return;
-    }
-
-    Navigator.of(context).pop(true);
-  }
+  const _Navbar({required this.onLogout});
 
   @override
   Widget build(BuildContext context)
   {
-    final isEdit = widget.outfit != null;
-    return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit outfit' : 'New outfit')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: 'Name'),
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        color: Colors.black87,
+        border: Border(bottom: BorderSide(color: AppColors.accentPink, width: 2)),
+      ),
+      child: Row(
+        children: [
+          // "OUTFITTR" logo badge — pink background with aqua offset shadow to
+          // echo the frontend navbar's box-shadow trick.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.accentPink,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.accentAqua,
+                  offset: Offset(3, 3),
+                  blurRadius: 0,
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descCtrl,
-              decoration: const InputDecoration(labelText: 'Description'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _itemIdsCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Item IDs (comma-separated, optional)',
-                helperText: 'Leave blank for now; a real item picker comes later.',
+            child: const Text(
+              'OUTFITTR',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
               ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              child: _submitting
-                  ? const SizedBox(
-                      height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(isEdit ? 'Save changes' : 'Create outfit'),
+          ),
+          const Spacer(),
+          // Ghost-style LOG OUT button with a white border.
+          OutlinedButton(
+            onPressed: onLogout,
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.white, width: 1.2),
+              shape: const StadiumBorder(),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-          ],
-        ),
+            child: const Text(
+              'LOG OUT',
+              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.2, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

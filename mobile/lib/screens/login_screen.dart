@@ -1,8 +1,15 @@
-// LoginScreen — email + password sign-in against /api/login.
+// LoginScreen — email + password sign-in against /api/login. Styled to match
+// the React frontend's graffiti-themed LoginPage.
 
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/bubble_title.dart';
+import '../widgets/graffiti_background.dart';
+import '../widgets/graffiti_button.dart';
+import '../widgets/graffiti_card.dart';
+import '../widgets/graffiti_text_field.dart';
 import 'outfit_manager_screen.dart';
 import 'register_screen.dart';
 
@@ -19,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _submitting = false;
+  String? _error;
 
   @override
   void dispose()
@@ -28,8 +36,8 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  // Validates inputs, calls AuthService.login, and either routes to OutfitManager or
-  // surfaces the backend error in a SnackBar.
+  // Validates inputs, calls AuthService.login, and either routes to OutfitManager
+  // or surfaces the backend error inline under the form.
   Future<void> _submit() async
   {
     final email = _emailCtrl.text.trim();
@@ -37,18 +45,18 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (email.isEmpty || password.isEmpty)
     {
-      _showError('Enter an email and password');
+      setState(() => _error = 'Enter an email and password');
       return;
     }
 
-    setState(() => _submitting = true);
+    setState(() { _submitting = true; _error = null; });
     final result = await AuthService.login(email, password);
     if (!mounted) return;
     setState(() => _submitting = false);
 
     if (!result.success)
     {
-      _showError(result.error ?? 'Login failed');
+      setState(() => _error = result.error ?? 'Login failed');
       return;
     }
 
@@ -57,50 +65,71 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _showError(String message)
-  {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context)
   {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              decoration: const InputDecoration(labelText: 'Email'),
+      body: GraffitiBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+              child: GraffitiCard(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(child: BubbleTitle(lines: ['OUTFITTR'], fontSize: 40)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Sign in to search your wardrobe and add the next piece to your collection.',
+                      style: AppTextStyles.cardCopy,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 28),
+                    GraffitiTextField(
+                      controller: _emailCtrl,
+                      placeholder: 'Email',
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                    ),
+                    const SizedBox(height: 14),
+                    GraffitiTextField(
+                      controller: _passwordCtrl,
+                      placeholder: 'Password',
+                      obscureText: true,
+                      autocorrect: false,
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_error!, style: AppTextStyles.error, textAlign: TextAlign.center),
+                    ],
+                    const SizedBox(height: 24),
+                    GraffitiButton(
+                      label: _submitting ? 'Entering...' : 'Enter',
+                      onPressed: _submitting ? null : _submit,
+                      busy: _submitting,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('New here? ', style: AppTextStyles.body),
+                        GestureDetector(
+                          onTap: _submitting
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                  ),
+                          child: const Text('SIGN UP', style: AppTextStyles.link),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password'),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              child: _submitting
-                  ? const SizedBox(
-                      height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Log in'),
-            ),
-            TextButton(
-              onPressed: _submitting
-                  ? null
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                      ),
-              child: const Text('Create an account'),
-            ),
-          ],
+          ),
         ),
       ),
     );
