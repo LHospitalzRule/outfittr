@@ -98,20 +98,6 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="graffiti-wrapper auth-backdrop">
         <AuthSprayLayer />
-        <div className="paint-orb orb-one" />
-        <div className="paint-orb orb-two" />
-        <div className="spray-cluster spray-left">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-        <div className="spray-cluster spray-right">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
       </div>
 
       <div className="login-container auth-container">
