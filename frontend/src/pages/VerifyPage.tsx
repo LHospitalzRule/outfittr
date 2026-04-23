@@ -10,21 +10,33 @@ export default function VerifyPage() {
 
   useEffect(() => {
     const token = searchParams.get("token");
+
     if (!token) {
       setStatus("error");
       setMessage("Missing verification token.");
       return;
     }
-    const verificationToken = token;
 
     async function verify() {
       try {
-        const url = buildApiPath(`api/verify?token=${encodeURIComponent(verificationToken)}`);
-        const res = await fetch(url, { method: "GET" });
+        const url = buildApiPath(`api/verify?token=${encodeURIComponent(token!)}`);
+        
+        console.log("Attempting verification at:", url);
+
+        const res = await fetch(url, { 
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          }
+        });
+
         const body = await res.json();
+        console.log("Server Response:", body);
+
         if (res.ok && !body.error) {
           setStatus("success");
           setMessage(body.message || "Your account has been verified. You can now sign in.");
+          
           window.setTimeout(() => {
             navigate("/");
           }, 3000);
@@ -33,8 +45,9 @@ export default function VerifyPage() {
           setMessage(body.error || "Verification failed");
         }
       } catch (e) {
+        console.error("Network Error:", e);
         setStatus("error");
-        setMessage("Unable to reach server.");
+        setMessage("Unable to reach server. Check your internet connection.");
       }
     }
 

@@ -3,10 +3,10 @@ require('dotenv').config();
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const sendVerificationEmail = async (email, firstName, verificationLink) => {
+const sendVerificationEmail = async (email, verificationLink) => {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Outfittr <onboarding@resend.dev>', // Keep using onboarding@resend.dev for now
+      from: 'Outfittr <no-reply@outfittr.xyz>',
       to: [email],
       subject: 'Verify your account',
       html: `
@@ -26,7 +26,7 @@ const sendVerificationEmail = async (email, firstName, verificationLink) => {
 const sendResetEmail = async (email, resetLink) => {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Outfittr <onboarding@resend.dev>',
+      from: 'Outfittr <no-reply@outfittr.xyz>',
       to: [email],
       subject: 'Reset your Outfittr password',
       html: `

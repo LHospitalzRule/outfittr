@@ -154,8 +154,7 @@ function getVerificationToken() {
 }
 
 function getVerificationLink(tokenValue) {
-    // Priority: .env variable > your live domain > local fallback
-    const frontendUrl = process.env.FRONTEND_URL || 'https://outfittr.xyz';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://outfittr.xyz';
     return `${frontendUrl}/verify?token=${tokenValue}`;
 }
 
