@@ -8,6 +8,12 @@ const { storage } = require('./cloudinaryConfig');
 const upload = multer({ storage });
 var token = require('./createJWT.js');
 const { promisify } = require('util');
+const { Resend } = require('resend');
+const { sendVerificationEmail, sendResetEmail } = require('./emailUtils');
+
+require('dotenv').config();
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const scryptAsync = promisify(crypto.scrypt);
 
@@ -148,7 +154,8 @@ function getVerificationToken() {
 }
 
 function getVerificationLink(tokenValue) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Priority: .env variable > your live domain > local fallback
+    const frontendUrl = process.env.FRONTEND_URL || 'https://outfittr.xyz';
     return `${frontendUrl}/verify?token=${tokenValue}`;
 }
 
@@ -165,38 +172,6 @@ function getMailer() {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
         }
-    });
-}
-
-async function sendVerificationEmail(email, verificationLink) {
-    const transporter = getMailer();
-
-    if (!transporter) {
-        console.log(`Verification link for ${email}: ${verificationLink}`);
-        return;
-    }
-
-    await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Outfittr <no-reply@example.com>',
-        to: email,
-        subject: 'Verify your Outfittr account',
-        text: `Verify your email by visiting: ${verificationLink}`
-    });
-}
-
-async function sendResetEmail(email, resetLink) {
-    const transporter = getMailer();
-
-    if (!transporter) {
-        console.log(`Password reset link for ${email}: ${resetLink}`);
-        return;
-    }
-
-    await transporter.sendMail({
-        from: process.env.EMAIL_FROM || 'Outfittr <no-reply@example.com>',
-        to: email,
-        subject: 'Reset your Outfittr password',
-        text: `Reset your password by visiting: ${resetLink}\n\nThis link expires in 1 hour.`
     });
 }
 
@@ -380,33 +355,36 @@ exports.setApp = function (app, client) {
     });
 
     app.post('/api/forgot-password', async (req, res) => {
-        const { email } = req.body;
+    const { email } = req.body;
 
-        try {
-            const db = client.db('OutfittrDB');
-            const user = await db.collection('Users').findOne({ email });
+    try {
+        const db = client.db('OutfittrDB');
+        const user = await db.collection('Users').findOne({ email: email.trim() });
 
-            if (user) {
-                const resetToken = crypto.randomBytes(32).toString('hex');
-                const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
+        if (user) {
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
 
-                await db.collection('Users').updateOne(
-                    { _id: user._id },
-                    { $set: { resetToken, resetExpires } }
-                );
+            await db.collection('Users').updateOne(
+                { _id: user._id },
+                { $set: { resetToken, resetExpires } }
+            );
 
-                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-                const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
-                await sendResetEmail(email, resetLink);
-            }
-
-            return res.status(200).json({
-                message: 'If that account exists, a password reset email has been sent.'
-            });
-        } catch (e) {
-            return res.status(500).json({ error: 'Unable to process request' });
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+            const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+            
+            // Now calling the function from emailUtils
+            await sendResetEmail(email, resetLink);
         }
-    });
+
+        return res.status(200).json({
+            message: 'If that account exists, a password reset email has been sent.'
+        });
+    } catch (e) {
+        console.error("Forgot Password Error:", e);
+        return res.status(500).json({ error: 'Unable to process request' });
+    }
+});
 
     app.post('/api/reset-password', async (req, res) => {
         const { token: resetToken, password } = req.body;
